@@ -10,6 +10,7 @@ import { entryReplySelect, toEntryReplies } from "@/lib/agent-api/entry-fields";
 import Image from "next/image";
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { SITE_NAME } from "@/lib/seo/site";
 import { notFound, permanentRedirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { agentMentionId } from "@/lib/mentions";
@@ -19,6 +20,7 @@ import { issueHref, issuePath, queryString } from "@/lib/issue-ref";
 import { findProjectIssue, parseIssueNumber } from "@/lib/project-issue";
 import { resolveSessionUserId } from "@/lib/session-user";
 import { LocalTime } from "@/components/local-time";
+import { IssuePrioritySelect } from "@/components/issue-priority-select";
 import { ClearDuplicateButton, MarkDuplicateButton } from "@/components/duplicate-controls";
 import { currentResolution, isFinishedStatus, type StatusChangeActivity } from "@/lib/resolution-note";
 import { statusLabel as resolutionStatusLabel } from "@/lib/labels";
@@ -111,6 +113,8 @@ import { SelfAssignButton } from "@/components/self-assign-button";
 import { IssueActionsMenu } from "@/components/issue-actions-menu";
 import { CopyIssueSummaryButton } from "@/components/copy-issue-summary-button";
 import { EditableIssueDescription } from "@/components/editable-issue-description";
+import { SecurityFindingPanel } from "@/components/security-finding-panel";
+import { findingForBug, findingView } from "@/lib/security-findings";
 import { IssueLinks } from "@/components/issue-links";
 import { parsePullRequestUrl } from "@/lib/github/pull-request-url";
 import { NextStepBar } from "@/components/next-step-bar";
@@ -121,6 +125,8 @@ import { LiveFlow } from "@/components/live-flow";
 import { latestPullRequestReport, gateReport, pullRequestStateView, type PullRequestStateView } from "@/lib/agent-api/pull-request-report";
 import { prGate, reportWanted } from "@/lib/agent-api/pr-gate";
 import { parseGitHubRepoUrl } from "@/lib/github/pull-request-url";
+import { mergeChecklist } from "@/lib/merge-checklist";
+import { MergeChecklistCard } from "@/components/merge-checklist";
 import { PROJECT_REPOSITORIES_SELECT, repoForPullRequest } from "@/lib/github/project-repositories";
 import { DecisionCard } from "@/components/decision-card";
 import { decisionFor } from "@/lib/your-decision";
@@ -159,6 +165,7 @@ import { stateLabel } from "@/lib/labels";
 import { IssueRewardPanel } from "@/components/issue-reward-panel";
 import { rewardEstimatesFor } from "@/lib/agent-api/reward-estimates";
 import { IssueBlockersPanel } from "@/components/issue-blockers-panel";
+import { IssueTimeTracking } from "@/components/issue-time-tracking";
 import type { IssueBlockerCandidate } from "@/app/actions/issue-blockers";
 import { activeIn, activeLevels, levelIn } from "@/lib/agents/active-in";
 
@@ -258,7 +265,7 @@ export async function generateMetadata({
       description,
       url: canonical,
       type: "article",
-      siteName: "Ziki",
+      siteName: SITE_NAME,
       modifiedTime: bug.updatedAt.toISOString(),
       images: [{ ...SHARE_IMAGE, url: image }],
     },
@@ -313,7 +320,7 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
 
     return (
       <div className="issue-detail-scope mx-auto max-w-2xl space-y-4 py-10">
-        <p className="text-sm text-zk-muted">Ziki Issues</p>
+        <p className="text-sm text-zk-muted">Ziki</p>
         <h1 className="text-2xl font-extrabold text-zk-text">{bug.title}</h1>
         <div className="flex flex-wrap gap-2">
           <Badge className={`${issueChipBaseClass} ${issueStatusChipClass[bug.substatus]}`}>
@@ -446,6 +453,11 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
     return issueLoadError(loadedBug.reference);
   }
   const bug = loadedBug.bug;
+  // #security-findings: the private details, shown only to who may see them.
+  const securityFinding = bug ? await findingForBug(bug.id) : null;
+  const securityView = bug && securityFinding
+    ? findingView(securityFinding, { kind: "person", userId: user.id, organisationId: bug.organisationId, organisationAdmin: access.admin })
+    : null;
 
   if (!bug || (bug.isDeleted && !canDelete)) {
     notFound();
@@ -1158,6 +1170,21 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
   // the delivered pull request), so the bar says what will actually move it.
   const judgementCount = bug.status === "done" && !bug.isDeleted
     ? await loadOptional("judgement count", null, () => countedJudgements(prisma, bug.id))
+    : null;
+  // #merge-checklist: while delivered work is judged, reviewed or waiting to
+  // merge, the checks before "good to merge", from the latest pull request report.
+  const checklist = !bug.isDeleted && (bug.status === "done" || bug.status === "merge") && bug.pullRequestUrl
+    ? await loadOptional("merge checklist", null, async () => {
+        const [report, project] = await Promise.all([
+          latestPullRequestReport(bug.id, bug.pullRequestUrl),
+          prisma.project.findUnique({ where: { id: bug.projectId }, select: { repoUrl: true } }),
+        ]);
+        return mergeChecklist(report, {
+          pullRequestUrl: bug.pullRequestUrl ?? null,
+          pullRequestHeadSha: bug.pullRequestHeadSha ?? null,
+          repo: parseGitHubRepoUrl(project?.repoUrl),
+        });
+      })
     : null;
   // #live-check: on a Live issue, where its fix really is, from the latest
   // independent check of its pull request rather than the Live label.
@@ -1943,6 +1970,9 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
                 <span className={`${issueChipBaseClass} bg-zk-chip text-zk-text2`}>{bug.type.name}</span>
               </p>
             ) : null}
+            <div className="flex flex-wrap items-center gap-2">
+              <IssuePrioritySelect bugId={bug.id} priority={bug.priority} />
+            </div>
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-2 self-start print:hidden">
@@ -2004,12 +2034,13 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
 
           {/* #1446: the progress report's stage filters the Conversation (#186). */}
           <IssueStageProvider initialStage={currentStage}>
+          {securityView ? <SecurityFindingPanel view={securityView} canDisclose={access.admin} kind="issue" /> : null}
           <EditableIssueDescription
             bugId={bug.id}
             initialTitle={bug.title}
             initialDescription={bug.description}
             summary={bug.summary}
-            canEdit={canEdit}
+            canEdit={canEdit && !(securityView && !securityView.disclosed)}
             users={users}
             lastEditedAt={lastRevision?.editedAt ?? null}
             historyHref={issueHref(bug, "/history")}
@@ -2077,6 +2108,8 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
             blocking={blocking}
             canEdit={canTriage && !bug.isDeleted}
           />
+
+          <IssueTimeTracking bugId={bug.id} canEdit={canUpdateStatus && !bug.isDeleted} />
 
           {deliveredBanner ? <DeliveredBanner {...deliveredBanner} /> : null}
 
@@ -2325,6 +2358,7 @@ export default async function BugDetailPage({ params, searchParams }: BugPagePro
               </form>
             ) : null}
           </section>
+          {checklist ? <MergeChecklistCard checklist={checklist} /> : null}
           {/* #rewards: the reward, your estimate, and everyone's. */}
           {rewardRow ? (
             <IssueRewardPanel
