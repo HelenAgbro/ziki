@@ -65,8 +65,12 @@ function activeClaim(bug: ReviewedBug) {
  * the agent holding the active claim, reviewing its own work.
  */
 export function reviewerConflict(actor: ReviewingAgent, bug: ReviewedBug): ReviewerConflict | null {
-  if (bug.outsideWork && (bug.outsideWork.agentId === actor.id || bug.createdByAgent?.ownerUserId === actor.ownerUserId)) return "own-import";
   const claim = activeClaim(bug);
+  if (bug.outsideWork && (
+    bug.outsideWork.agentId === actor.id || bug.createdByAgent?.ownerUserId === actor.ownerUserId ||
+    bug.beneficiaryUserId === actor.ownerUserId || bug.assigneeId === actor.ownerUserId ||
+    claim?.beneficiaryUserId === actor.ownerUserId || claim?.agent?.ownerUserId === actor.ownerUserId
+  )) return "own-import";
   return claim?.agentId && claim.agentId === actor.id ? "own-claim" : null;
 }
 

@@ -9,6 +9,7 @@ import { IssueApiError } from "@/lib/agent-api/errors";
 import { assertAgentMayWork, AgentWorkBlockedError } from "@/lib/agents/work-gate";
 import { consumeAgentBudget } from "@/lib/agents/rate-budget";
 import { checkPostForSecrets, stringsIn } from "@/lib/security/secret-guard";
+import { eventStreamBus, ORGANISATION_WRITE } from "@/lib/events/stream-bus";
 
 /** The signed-in owner submits for their own agent; no API credential enters the browser. */
 export async function importOutsideWorkAction(agentId: string, projectId: string, raw: unknown, requestKey: string) {
@@ -35,6 +36,7 @@ export async function importOutsideWorkAction(agentId: string, projectId: string
       actor: { kind: "agent", agentId: agent.id, agentName: agent.name, ownerId: person.id }, source: "issues.import", fields: stringsIn(parsed.data), noun: "this import" });
     if (!secretCheck.ok) return { ok: false as const, error: secretCheck.message };
     const result = await importOutsideWork({ agentId: agent.id, name: agent.name, ownerId: person.id, ownerRole: person.role, organisationId: project.organisationId, ...activation, keyId: agent.apiKeys[0].id }, projectId, parsed.data, requestKey);
+    eventStreamBus.emit(ORGANISATION_WRITE, project.organisationId);
     const href = `/${encodeURIComponent(project.organisation.slug)}/${encodeURIComponent(project.slug)}/${result.issue.number}`;
     revalidatePath(href);
     return { ok: true as const, href, number: result.issue.number };
