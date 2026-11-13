@@ -13,7 +13,10 @@ import { sweepOrphanedIssues } from "@/lib/orphaned-issues";
 import { sweepUndraftedIdeas } from "@/lib/cron/draft-structuring";
 import { processSearchOutbox, pruneProcessedSearchOutbox } from "@/lib/search-index";
 import { refreshMergeQueue } from "@/lib/github/sync";
+import { followPreviewBuilds } from "@/lib/previews/builds";
 import { sweepSecurityChecks } from "@/lib/security-checks/engine";
+import { recordOnCallSample } from "@/lib/on-call-metrics";
+import { sweepTesting } from "@/lib/agent-api/testing-sweep";
 
 export const FAILURE_ALERT_THRESHOLD = 3;
 const consecutiveFailures = new Map<string, number>();
@@ -64,7 +67,9 @@ export type PlatformSweepsResult = {
       paid?: number;
       error?: string;
     };
+    onCall: { status: "ok" | "error"; onCall?: number; online?: number; free?: number; error?: string };
     orphanedIssues: { status: "ok" | "error"; reopened?: number; error?: string };
+    testing: { status: "ok" | "error"; toOwners?: number; escalated?: number; summaries?: number; error?: string };
     draftStructuring: {
       status: "ok" | "error";
       structured?: number;
@@ -74,6 +79,7 @@ export type PlatformSweepsResult = {
       error?: string;
     };
     githubStatus: { status: "ok" | "error"; checked?: number; moved?: number; failed?: number; error?: string };
+    previews: { status: "ok" | "error"; checked?: number; failed?: number; error?: string };
     deliveries: { status: "ok" | "error"; processed?: number; error?: string };
     retention: {
       status: "ok" | "error";
@@ -115,9 +121,12 @@ export async function runPlatformSweeps(): Promise<PlatformSweepsResult | { skip
         reviewOffers: { status: "ok" },
         claims: { status: "ok" },
         securityChecks: { status: "ok" },
+        onCall: { status: "ok" },
         orphanedIssues: { status: "ok" },
+        testing: { status: "ok" },
         draftStructuring: { status: "ok" },
         githubStatus: { status: "ok" },
+        previews: { status: "ok" },
         deliveries: { status: "ok" },
         retention: { status: "ok" },
         searchIndex: { status: "ok" },
@@ -202,6 +211,26 @@ export async function runPlatformSweeps(): Promise<PlatformSweepsResult | { skip
       result.sweeps.securityChecks = { status: "error", error: err instanceof Error ? err.message : String(err) };
     }
 
+    // 2a. Deeper testing (#deeper-testing): rows past their day, proof escalations, the weekly line.
+    try {
+      const res = await sweepTesting();
+      recordSweepSuccess("testing");
+      result.sweeps.testing = { status: "ok", ...res };
+    } catch (err) {
+      recordSweepFailure("testing", err);
+      result.sweeps.testing = { status: "error", error: err instanceof Error ? err.message : String(err) };
+    }
+
+    // 2a2. On-call cover (#on-call): one snapshot a minute, for coverage on /oncall and the bar.
+    try {
+      const res = await recordOnCallSample(prisma);
+      recordSweepSuccess("onCall");
+      result.sweeps.onCall = { status: "ok", ...res };
+    } catch (err) {
+      recordSweepFailure("onCall", err);
+      result.sweeps.onCall = { status: "error", error: err instanceof Error ? err.message : String(err) };
+    }
+
     // 2b. Issues that have no claim for the stale-claim sweep to find (#623).
     try {
       const res = await sweepOrphanedIssues();
@@ -239,6 +268,16 @@ export async function runPlatformSweeps(): Promise<PlatformSweepsResult | { skip
     } catch (err) {
       recordSweepFailure("githubStatus", err);
       result.sweeps.githubStatus = { status: "error", error: err instanceof Error ? err.message : String(err) };
+    }
+
+    // 3a. Preview builds (#previews): follow the builder's unfinished runs.
+    try {
+      const res = await followPreviewBuilds();
+      recordSweepSuccess("previews");
+      result.sweeps.previews = { status: "ok", ...res };
+    } catch (err) {
+      recordSweepFailure("previews", err);
+      result.sweeps.previews = { status: "error", error: err instanceof Error ? err.message : String(err) };
     }
 
     // 4. Webhook Deliveries

@@ -2,10 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { requireUser } from "@/lib/auth-helpers";
 import { currentOrganisationAccess } from "@/lib/organisation-access";
 import { prisma } from "@/lib/prisma";
 import { OWNERSHIP_METHODS, proveOwnership, recordOwnership, type OwnershipMethod } from "@/lib/security-checks/ownership";
+import { kickCheck } from "@/lib/security-checks/engine";
 
 /**
  * Step 2, show it's yours (#security-checks, part 2). One "Check now" tries
@@ -24,7 +26,7 @@ export type VerifyState = {
 export async function verifySecurityTarget(targetId: string): Promise<VerifyState> {
   const user = await requireUser();
   const access = await currentOrganisationAccess(user.id, user.role);
-  if (!access.organisationId) return { error: "Join or create a workspace to check a site." };
+  if (!access.organisationId) return { error: "Join or create a workspace to secure your assets." };
 
   const target = await prisma.securityTarget.findFirst({
     where: { id: targetId, organisationId: access.organisationId },
@@ -49,7 +51,12 @@ export async function verifySecurityTarget(targetId: string): Promise<VerifyStat
   }
   if (!proven) return { missing };
 
-  const { checkId } = await recordOwnership(target.id, target.organisationId, user.id, proven);
+  const { checkId, queued } = await recordOwnership(target.id, target.organisationId, user.id, proven);
+  // Start the check now, not at the next sweep (12 Nov plan, D1 -> H1). It runs after the
+  // response, so the client isn't kept waiting while Ziki's AI splits it; kickCheck never
+  // throws, and the sweep still starts anything that didn't.
+  if (queued.length) after(() => Promise.all(queued.map((id) => kickCheck(prisma, id))));
   revalidatePath("/security");
-  redirect(checkId ? `/security/checks/${encodeURIComponent(checkId)}/pay` : "/security");
+  // The scan is free: back to Assets, with this site picked out, while it runs.
+  redirect(checkId ? `/security?check=${encodeURIComponent(checkId)}` : "/security");
 }

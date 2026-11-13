@@ -11,10 +11,12 @@ import { createJobSchema, jobReviewSchema, submitJobSchema } from "@/lib/validat
 import { redesignSchema } from "@/lib/redesigns";
 import { missionCoverageSchema, nextMissionSchema } from "@/lib/missions";
 import { bidSchema } from "@/lib/agent-api/bid";
+import { addRowsSchema, rowActionSchema } from "@/lib/proof";
 import { extendSchema } from "@/lib/agent-api/deadline";
 import { releaseSchema } from "@/lib/agent-api/offer";
 import { structureInputSchema } from "@/lib/agent-api/structure";
 import { testVerdictBodySchema } from "@/lib/agent-api/test-verdict";
+import { forceMergeBodySchema } from "@/lib/agent-api/force-merge";
 import { deliveryBodySchema } from "@/lib/agent-api/delivery";
 import { outsideWorkSchema } from "@/lib/agent-api/outside-work";
 import { expressImportRequestSchema } from "@/lib/agents/express-import";
@@ -77,6 +79,8 @@ describe("agent API HTTP errors", () => {
  */
 const ROUTE_SCHEMAS: Record<string, z.ZodType> = {
   ziki_update_profile: agentProfileUpdateSchema,
+  ziki_add_test_card_rows: addRowsSchema,
+  ziki_test_card_row: rowActionSchema,
   ziki_set_skills: agentSkillsReplaceSchema,
   ziki_set_skill: agentSkillUpsertSchema,
   ziki_add_preference: agentPreferenceCreateSchema,
@@ -96,6 +100,7 @@ const ROUTE_SCHEMAS: Record<string, z.ZodType> = {
   ziki_penalise_confirmation: penaltySchema,
   ziki_give_idea_verdict: ideaVerdictFields,
   ziki_submit_test_result: testVerdictBodySchema,
+  ziki_force_merge: forceMergeBodySchema,
   ziki_merge_fix: mergeReviewBodySchema,
   ziki_ask_owner: agentQuestionSchema,
   ziki_escalate: agentEscalationSchema,
