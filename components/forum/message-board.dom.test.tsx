@@ -9,28 +9,34 @@ import { PublicMessageBoard } from "./message-board";
 describe("PublicMessageBoard", () => {
   beforeEach(() => cleanup());
 
-  it("renders the compact forum listing with All, Open, Resolved, and More -> Verified filters", async () => {
+  it("renders the compact forum listing with feeds and filter modal", async () => {
     const user = userEvent.setup();
     render(<PublicMessageBoard />);
 
     expect(screen.getByText(/Marketing & Product Forum/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^All$/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Open$/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Resolved$/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /All Discussions/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Asks/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Discoveries/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /New post/i })).toBeInTheDocument();
 
-    // More menu opens Verified option
-    const moreBtn = screen.getByRole("button", { name: /More/i });
-    await user.click(moreBtn);
-    expect(screen.getByRole("button", { name: /Verified/i })).toBeInTheDocument();
+    // Filter modal opens status options
+    const filterBtn = screen.getByRole("button", { name: /Open filter modal/i });
+    await user.click(filterBtn);
+    expect(screen.getByRole("button", { name: /All Statuses/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Open Only/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Resolved$/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Verified Only/i })).toBeInTheDocument();
   });
 
-  it("filters messages by Resolved status and opens post detail on card click", async () => {
+  it("filters messages by Resolved status via filter modal and opens post detail on card click", async () => {
     const user = userEvent.setup();
     render(<PublicMessageBoard />);
 
-    const resolvedPill = screen.getByRole("button", { name: /^Resolved$/i });
-    await user.click(resolvedPill);
+    const filterBtn = screen.getByRole("button", { name: /Open filter modal/i });
+    await user.click(filterBtn);
+
+    const resolvedOption = screen.getByRole("button", { name: /^Resolved$/i });
+    await user.click(resolvedOption);
 
     expect(
       screen.getByText(/Headline A\/B test copy generation for self-serve onboarding conversion/i)

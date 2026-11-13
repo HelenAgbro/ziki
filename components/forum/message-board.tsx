@@ -174,14 +174,86 @@ export function PublicMessageBoard({
     initialPostId ?? INITIAL_FORUM_MESSAGES[0].id
   );
 
-  // Filters
+  // Filters & Menus
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const [popularTagsOpen, setPopularTagsOpen] = useState(false);
   const [feedFilter, setFeedFilter] = useState<FeedFilter>("all");
   const [trackFilter, setTrackFilter] = useState<TrackFilter>("all");
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"newest" | "helpful" | "replies">("newest");
+
+  // Sidebar Scope Hierarchy State (Global, Organisations & Projects, External Projects)
+  const [selectedScope, setSelectedScope] = useState<{
+    type: "global" | "org" | "project" | "external";
+    orgId?: string;
+    projectId?: string;
+    name: string;
+  }>({
+    type: "project",
+    orgId: "zedu",
+    projectId: "web",
+    name: "Web",
+  });
+
+  const [expandedOrgs, setExpandedOrgs] = useState<Record<string, boolean>>({
+    zedu: true,
+    acme: false,
+  });
+
+  const toggleOrgExpanded = (orgId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedOrgs((prev) => ({ ...prev, [orgId]: !prev[orgId] }));
+  };
+
+  // Mock organizations & projects
+  const ORGANISATIONS = [
+    {
+      id: "zedu",
+      name: "Zedu Technologies",
+      projects: [
+        { id: "web", name: "Web" },
+        { id: "mobile", name: "Mobile App" },
+        { id: "sdk", name: "Core SDK" },
+      ],
+    },
+    {
+      id: "acme",
+      name: "Acme Labs",
+      projects: [
+        { id: "infra", name: "Infra & Edge" },
+        { id: "ai-mesh", name: "AI Mesh" },
+      ],
+    },
+  ];
+
+  const EXTERNAL_PROJECTS = [
+    {
+      id: "audit-staging",
+      name: "Audit Staging",
+      orgName: "HyperScale Corp",
+      orgSlug: "hyperscale",
+    },
+    {
+      id: "auth-gateway",
+      name: "Auth Gateway",
+      orgName: "ShieldNet",
+      orgSlug: "shieldnet",
+    },
+  ];
+
+  const POPULAR_TAGS = [
+    "seo",
+    "debugging",
+    "copywriting",
+    "onboarding",
+    "auth",
+    "webhooks",
+    "api-latency",
+    "pgbouncer",
+    "stripe",
+  ];
 
   // New Post Form State (no Why Context field)
   const [newKind, setNewKind] = useState<"ask" | "report">("ask");
@@ -360,315 +432,343 @@ export function PublicMessageBoard({
 
   // Shared Left Sidebar for List & Detail views
   const renderSidebar = () => (
-    <aside className="flex flex-col gap-4 lg:pr-4 lg:border-r lg:border-zk-border min-w-0 lg:sticky lg:top-20 shrink-0 self-start">
-      {/* Feeds & Views */}
+    <aside className="flex flex-col gap-4 min-w-0 lg:sticky lg:top-20 shrink-0 self-start w-full">
+      {/* Scope 1: Global Forum */}
       <div className="flex flex-col gap-1">
         <span className="text-[10px] uppercase tracking-wider text-zk-muted font-semibold px-2 mb-1">
-          Feeds &amp; Views
+          Forum Scope
         </span>
         <button
           type="button"
           onClick={() => {
-            setFeedFilter("all");
+            setSelectedScope({ type: "global", name: "Global Ziki Forum" });
             setView("list");
           }}
           className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[13px] font-medium transition-colors cursor-pointer ${
-            feedFilter === "all"
-              ? "bg-zk-chip text-zk-text font-semibold"
+            selectedScope.type === "global"
+              ? "bg-zk-tint text-zk-accent font-semibold border border-zk-accent/25"
               : "text-zk-text2 hover:text-zk-text hover:bg-zk-chip/60"
           }`}
         >
           <span className="flex items-center gap-2">
             <Icon size={15} className="text-zk-accent">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </Icon>
-            <span>All Discussions</span>
-          </span>
-          <span className="font-mono text-[11px] text-zk-accent font-bold px-1.5 py-0.5 rounded bg-zk-tint">
-            {messages.length}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setFeedFilter("ask");
-            setView("list");
-          }}
-          className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[13px] transition-colors cursor-pointer ${
-            feedFilter === "ask"
-              ? "bg-zk-chip text-zk-text font-semibold"
-              : "text-zk-text2 hover:text-zk-text hover:bg-zk-chip/60"
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <Icon size={15} className="text-zk-muted">
               <circle cx="12" cy="12" r="9" />
-              <path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3" />
-              <path d="M12 17h.01" />
+              <path d="M12 3a14.5 14.5 0 0 0 0 18M12 3a14.5 14.5 0 0 1 0 18M3 12h18" />
             </Icon>
-            <span>Asks</span>
+            <span>Global Ziki Forum</span>
           </span>
-          <span className="font-mono text-[11px] text-zk-muted px-1.5 py-0.5 rounded bg-zk-chip">
-            {messages.filter((m) => m.kind === "ask").length}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setFeedFilter("report");
-            setView("list");
-          }}
-          className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[13px] transition-colors cursor-pointer ${
-            feedFilter === "report"
-              ? "bg-zk-chip text-zk-text font-semibold"
-              : "text-zk-text2 hover:text-zk-text hover:bg-zk-chip/60"
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <Icon size={15} className="text-zk-muted">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="16" y1="13" x2="8" y2="13" />
-              <line x1="16" y1="17" x2="8" y2="17" />
-            </Icon>
-            <span>Discoveries</span>
-          </span>
-          <span className="font-mono text-[11px] text-zk-muted px-1.5 py-0.5 rounded bg-zk-chip">
-            {messages.filter((m) => m.kind === "report").length}
+          <span className="font-mono text-[10px] text-zk-muted px-1.5 py-0.5 rounded bg-zk-chip">
+            All
           </span>
         </button>
       </div>
 
-      {/* Ziki Tracks */}
+      {/* Scope 2: Organisations & Internal Projects */}
       <div className="flex flex-col gap-1 pt-2 border-t border-zk-border">
         <span className="text-[10px] uppercase tracking-wider text-zk-muted font-semibold px-2 mb-1">
-          Ziki Tracks
+          Your Organisations
         </span>
-        <button
-          type="button"
-          onClick={() => {
-            setTrackFilter(trackFilter === "product" ? "all" : "product");
-            setView("list");
-          }}
-          className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[13px] transition-colors cursor-pointer ${
-            trackFilter === "product"
-              ? "bg-zk-tint text-zk-accent font-semibold border border-zk-accent/25"
-              : "text-zk-text2 hover:text-zk-text hover:bg-zk-chip/60"
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-zk-muted shrink-0" />
-            <span>Your App</span>
-          </span>
-          <span className="font-mono text-[11px] text-zk-muted px-1.5 py-0.5 rounded bg-zk-chip">
-            {messages.filter((m) => m.track === "product").length}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setTrackFilter(trackFilter === "marketing" ? "all" : "marketing");
-            setView("list");
-          }}
-          className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[13px] transition-colors cursor-pointer ${
-            trackFilter === "marketing"
-              ? "bg-zk-tint text-zk-accent font-semibold border border-zk-accent/25"
-              : "text-zk-text2 hover:text-zk-text hover:bg-zk-chip/60"
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-electric-blue shrink-0" />
-            <span>Marketing</span>
-          </span>
-          <span className="font-mono text-[11px] text-zk-accent font-bold px-1.5 py-0.5 rounded bg-zk-tint">
-            {messages.filter((m) => m.track === "marketing").length}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setTrackFilter(trackFilter === "security" ? "all" : "security");
-            setView("list");
-          }}
-          className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[13px] transition-colors cursor-pointer ${
-            trackFilter === "security"
-              ? "bg-zk-tint text-zk-accent font-semibold border border-zk-accent/25"
-              : "text-zk-text2 hover:text-zk-text hover:bg-zk-chip/60"
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-zk-ok-fg shrink-0" />
-            <span>Security</span>
-          </span>
-          <span className="font-mono text-[11px] text-zk-muted px-1.5 py-0.5 rounded bg-zk-chip">
-            {messages.filter((m) => m.track === "security").length}
-          </span>
-        </button>
+        {ORGANISATIONS.map((org) => {
+          const isOrgSelected =
+            selectedScope.type === "org" && selectedScope.orgId === org.id;
+          const isExpanded = expandedOrgs[org.id] ?? false;
+
+          return (
+            <div key={org.id} className="flex flex-col gap-0.5">
+              <div
+                onClick={() => {
+                  setSelectedScope({
+                    type: "org",
+                    orgId: org.id,
+                    name: org.name,
+                  });
+                  setView("list");
+                }}
+                className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[13px] transition-colors cursor-pointer group ${
+                  isOrgSelected
+                    ? "bg-zk-tint text-zk-accent font-semibold border border-zk-accent/25"
+                    : "text-zk-text2 hover:text-zk-text hover:bg-zk-chip/60"
+                }`}
+              >
+                <span className="flex items-center gap-2 truncate">
+                  <Icon size={14} className="text-zk-muted">
+                    <path d="M3 21h18M3 7v14M21 7v14M6 7V3h12v4M9 11h2M13 11h2M9 15h2M13 15h2" />
+                  </Icon>
+                  <span className="truncate">{org.name}</span>
+                </span>
+                <button
+                  type="button"
+                  aria-label={`Toggle projects for ${org.name}`}
+                  onClick={(e) => toggleOrgExpanded(org.id, e)}
+                  className="p-1 rounded hover:bg-zk-chip text-zk-muted hover:text-zk-text transition-colors shrink-0"
+                >
+                  <Icon size={12} className={isExpanded ? "rotate-90" : ""}>
+                    <path d="m9 18 6-6-6-6" />
+                  </Icon>
+                </button>
+              </div>
+
+              {/* Projects Underneath Org */}
+              {isExpanded && (
+                <div className="flex flex-col gap-0.5 pl-5 pr-1 border-l border-zk-border/60 ml-3.5 my-0.5">
+                  {org.projects.map((proj) => {
+                    const isProjSelected =
+                      selectedScope.type === "project" &&
+                      selectedScope.orgId === org.id &&
+                      selectedScope.projectId === proj.id;
+
+                    return (
+                      <button
+                        key={proj.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedScope({
+                            type: "project",
+                            orgId: org.id,
+                            projectId: proj.id,
+                            name: `${org.name} / ${proj.name}`,
+                          });
+                          setView("list");
+                        }}
+                        className={`flex items-center justify-between px-2 py-1 rounded-md text-[12px] transition-colors cursor-pointer text-left ${
+                          isProjSelected
+                            ? "bg-zk-chip text-zk-accent font-semibold"
+                            : "text-zk-text2 hover:text-zk-text hover:bg-zk-chip/40"
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5 truncate">
+                          <span className="w-1.5 h-1.5 rounded-full bg-zk-muted/60" />
+                          <span className="truncate">{proj.name}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      {/* Popular Tags */}
-      <div className="flex flex-col gap-2 pt-2 border-t border-zk-border">
-        <span className="text-[10px] uppercase tracking-wider text-zk-muted font-semibold px-2">
-          Popular Tags
+      {/* Scope 3: External Projects (Collaborator) */}
+      <div className="flex flex-col gap-1 pt-2 border-t border-zk-border">
+        <span className="text-[10px] uppercase tracking-wider text-zk-muted font-semibold px-2 mb-1">
+          External Projects
         </span>
-        <div className="flex flex-wrap gap-1.5 px-1">
-          {["seo", "debugging", "copywriting", "onboarding", "auth", "webhooks"].map(
-            (tag) => {
-              const active = selectedTag === tag || selectedTag === `#${tag}`;
-              return (
-                <button
-                  key={tag}
-                  type="button"
-                  onClick={() => {
-                    setSelectedTag(active ? null : tag);
-                    setView("list");
-                  }}
-                  className={`px-2 py-0.5 rounded border text-[11px] transition-colors cursor-pointer ${
-                    active
-                      ? "bg-zk-tint border-zk-accent/40 text-zk-accent font-medium"
-                      : "bg-zk-chip hover:bg-zk-seg border-zk-border text-zk-text2 hover:text-zk-text"
-                  }`}
-                >
-                  {tag}
-                </button>
-              );
-            }
-          )}
-        </div>
+        {EXTERNAL_PROJECTS.map((ext) => {
+          const isExtSelected =
+            selectedScope.type === "external" &&
+            selectedScope.projectId === ext.id;
+
+          return (
+            <button
+              key={ext.id}
+              type="button"
+              onClick={() => {
+                setSelectedScope({
+                  type: "external",
+                  projectId: ext.id,
+                  name: `${ext.name} (${ext.orgName})`,
+                });
+                setView("list");
+              }}
+              className={`flex flex-col gap-0.5 px-2.5 py-1.5 rounded-lg text-left transition-colors cursor-pointer ${
+                isExtSelected
+                  ? "bg-zk-tint text-zk-accent border border-zk-accent/25"
+                  : "text-zk-text2 hover:text-zk-text hover:bg-zk-chip/60"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-1 w-full">
+                <span className="text-[13px] font-medium text-zk-text truncate">
+                  {ext.name}
+                </span>
+                <span className="text-[9px] uppercase font-mono px-1 rounded bg-zk-chip text-zk-muted shrink-0">
+                  Guest
+                </span>
+              </div>
+              <span className="text-[11px] text-zk-muted truncate font-mono">
+                {ext.orgName}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </aside>
   );
 
   return (
     <div className="w-full flex flex-col gap-4">
-      {/* Scope Context Subbar */}
-      <div className="flex items-center justify-between text-[13px] px-1">
-        <div className="flex items-center gap-1.5 text-zk-muted">
-          <button
-            type="button"
-            onClick={() => setView("list")}
-            className="hover:text-zk-text transition-colors cursor-pointer"
-          >
-            All Projects
-          </button>
-          <span className="text-[11px]">/</span>
-          <button
-            type="button"
-            onClick={() => setView("list")}
-            className="hover:text-zk-text transition-colors cursor-pointer"
-          >
-            Web
-          </button>
-          <span className="text-[11px]">/</span>
-          <button
-            type="button"
-            onClick={() => setView("list")}
-            className="hover:text-zk-text transition-colors cursor-pointer"
-          >
-            Forum
-          </button>
-          <span className="text-[11px]">/</span>
-          <span className="text-zk-text font-semibold">
-            {view === "list"
-              ? "Discussions"
-              : view === "new"
-                ? "New Post"
-                : "Discussion"}
-          </span>
+      {/* Top Row with Tracks & New Post */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 text-[13px] px-1 pb-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Track Pills in Top Row */}
+          <div className="flex items-center gap-1 bg-zk-chip/60 p-0.5 rounded-lg border border-zk-border">
+            <button
+              type="button"
+              onClick={() => {
+                setTrackFilter("all");
+                setView("list");
+              }}
+              className={`px-2 py-0.5 rounded-md text-[12px] transition-colors cursor-pointer ${
+                trackFilter === "all"
+                  ? "bg-zk-surface text-zk-text font-medium shadow-2xs"
+                  : "text-zk-muted hover:text-zk-text"
+              }`}
+            >
+              All Tracks
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTrackFilter(trackFilter === "product" ? "all" : "product");
+                setView("list");
+              }}
+              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[12px] transition-colors cursor-pointer ${
+                trackFilter === "product"
+                  ? "bg-zk-surface text-zk-accent font-semibold shadow-2xs"
+                  : "text-zk-muted hover:text-zk-text"
+              }`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-zk-muted" />
+              <span>Your App</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTrackFilter(trackFilter === "marketing" ? "all" : "marketing");
+                setView("list");
+              }}
+              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[12px] transition-colors cursor-pointer ${
+                trackFilter === "marketing"
+                  ? "bg-zk-surface text-zk-accent font-semibold shadow-2xs"
+                  : "text-zk-muted hover:text-zk-text"
+              }`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-electric-blue" />
+              <span>Marketing</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTrackFilter(trackFilter === "security" ? "all" : "security");
+                setView("list");
+              }}
+              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[12px] transition-colors cursor-pointer ${
+                trackFilter === "security"
+                  ? "bg-zk-surface text-zk-accent font-semibold shadow-2xs"
+                  : "text-zk-muted hover:text-zk-text"
+              }`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-zk-ok-fg" />
+              <span>Security</span>
+            </button>
+          </div>
         </div>
-        <div className="hidden sm:flex items-center gap-1.5 text-zk-muted text-[12px]">
-          <Icon size={13} className="text-zk-muted">
-            <rect x="3" y="11" width="18" height="11" rx="2" />
-            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-          </Icon>
-          <span>
-            Visible only in <strong className="text-zk-text font-medium">Web</strong>. Never shown in other projects.
-          </span>
+
+        {/* Right side: New post button elevated to top row */}
+        <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
+          <button
+            type="button"
+            onClick={() => setView("new")}
+            className="flex items-center gap-1.5 h-8 px-3.5 rounded-lg bg-electric-blue-strong hover:bg-electric-blue text-white font-semibold text-[13px] transition-colors shadow-xs cursor-pointer"
+          >
+            <Icon size={14}>
+              <path d="M12 5v14M5 12h14" />
+            </Icon>
+            <span>New post</span>
+          </button>
         </div>
       </div>
 
       {/* VIEW 1: FORUM HUB LISTING (COMPACT CARDS) */}
       {view === "list" && (
         <div className="w-full min-h-[calc(100vh-80px)] bg-zk-surface border border-zk-border rounded-[20px] p-4 md:p-6 flex flex-col gap-4 shadow-xs">
-          {/* Top Filter Bar */}
+          {/* Sub-Filter Bar (Feeds, Search, Filter Modal, Popular Tags, Sort) */}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-4 border-b border-zk-border">
-            {/* Quick Status Filter Pills: All, Open, Resolved, More -> Verified */}
+            {/* Left: Feeds & Views (All Discussions, Asks, Discoveries) */}
             <div className="flex items-center gap-1.5 relative flex-wrap">
               <button
                 type="button"
-                onClick={() => setStatusFilter("all")}
+                onClick={() => setFeedFilter("all")}
                 className={`px-3 py-1.5 rounded-full text-[13px] font-medium border transition-colors cursor-pointer ${
-                  statusFilter === "all"
-                    ? "bg-zk-tint text-zk-accent border-zk-accent/30"
+                  feedFilter === "all"
+                    ? "bg-zk-tint text-zk-accent border-zk-accent/30 font-semibold"
                     : "bg-zk-chip hover:bg-zk-seg text-zk-text2 hover:text-zk-text border-zk-border"
                 }`}
               >
-                All
+                <span>All Discussions</span>
+                <span className="ml-1.5 font-mono text-[11px] opacity-75">
+                  {messages.length}
+                </span>
               </button>
               <button
                 type="button"
-                onClick={() => setStatusFilter("open")}
+                onClick={() => setFeedFilter("ask")}
                 className={`px-3 py-1.5 rounded-full text-[13px] font-medium border transition-colors cursor-pointer ${
-                  statusFilter === "open"
-                    ? "bg-zk-tint text-zk-accent border-zk-accent/30"
+                  feedFilter === "ask"
+                    ? "bg-zk-tint text-zk-accent border-zk-accent/30 font-semibold"
                     : "bg-zk-chip hover:bg-zk-seg text-zk-text2 hover:text-zk-text border-zk-border"
                 }`}
               >
-                Open
+                <span>Asks</span>
+                <span className="ml-1.5 font-mono text-[11px] opacity-75">
+                  {messages.filter((m) => m.kind === "ask").length}
+                </span>
               </button>
               <button
                 type="button"
-                onClick={() => setStatusFilter("resolved")}
+                onClick={() => setFeedFilter("report")}
                 className={`px-3 py-1.5 rounded-full text-[13px] font-medium border transition-colors cursor-pointer ${
-                  statusFilter === "resolved"
-                    ? "bg-zk-tint text-zk-accent border-zk-accent/30"
+                  feedFilter === "report"
+                    ? "bg-zk-tint text-zk-accent border-zk-accent/30 font-semibold"
                     : "bg-zk-chip hover:bg-zk-seg text-zk-text2 hover:text-zk-text border-zk-border"
                 }`}
               >
-                Resolved
+                <span>Discoveries</span>
+                <span className="ml-1.5 font-mono text-[11px] opacity-75">
+                  {messages.filter((m) => m.kind === "report").length}
+                </span>
               </button>
 
-              {/* More dropdown containing Verified */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setMoreMenuOpen((prev) => !prev)}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[13px] font-medium border transition-colors cursor-pointer ${
-                    statusFilter === "verified"
-                      ? "bg-zk-tint text-zk-accent border-zk-accent/30"
-                      : "bg-zk-chip hover:bg-zk-seg text-zk-muted hover:text-zk-text border-zk-border"
-                  }`}
-                >
-                  <span>{statusFilter === "verified" ? "Verified" : "More"}</span>
-                  <Icon size={13}>
-                    <path d="m6 9 6 6 6-6" />
-                  </Icon>
-                </button>
-                {moreMenuOpen && (
-                  <div className="absolute left-0 top-full mt-1.5 w-40 rounded-lg bg-zk-surface border border-zk-border shadow-xl py-1 z-30">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setStatusFilter(
-                          statusFilter === "verified" ? "all" : "verified"
-                        );
-                        setMoreMenuOpen(false);
-                      }}
-                      className="w-full px-3 py-1.5 text-left text-[13px] text-zk-text2 hover:text-zk-text hover:bg-zk-chip flex items-center gap-2 transition-colors cursor-pointer"
-                    >
-                      <Icon size={14} className="text-zk-ok-fg">
-                        <circle cx="12" cy="12" r="9" />
-                        <path d="m9 12 2 2 4-4" />
-                      </Icon>
-                      <span>Verified</span>
-                    </button>
-                  </div>
-                )}
-              </div>
+              {/* Status active indicator pill if filtered */}
+              {statusFilter !== "all" && (
+                <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-zk-chip border border-zk-border text-[11px] text-zk-text2 ml-1">
+                  <span>Status:</span>
+                  <span className="font-semibold text-zk-accent capitalize">
+                    {statusFilter}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter("all")}
+                    className="hover:text-zk-text cursor-pointer ml-0.5"
+                    aria-label="Clear status filter"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+
+              {/* Tag active indicator pill if filtered */}
+              {selectedTag && (
+                <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-zk-chip border border-zk-border text-[11px] text-zk-text2">
+                  <span>Tag:</span>
+                  <span className="font-semibold text-zk-accent">
+                    {selectedTag.replace(/^#/, "")}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTag(null)}
+                    className="hover:text-zk-text cursor-pointer ml-0.5"
+                    aria-label="Clear tag filter"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Right Action Controls (Search, Sort, New Post) */}
-            <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            {/* Right Action Controls: Search, Filter Modal, Popular Tags Dropdown, Sort */}
+            <div className="flex items-center gap-2 shrink-0 flex-wrap relative">
               <div className="relative flex items-center">
                 <Icon
                   size={14}
@@ -683,9 +783,148 @@ export function PublicMessageBoard({
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search forum..."
                   aria-label="Search forum"
-                  className="w-44 sm:w-56 h-8 pl-8 pr-3 bg-zk-bg rounded-md border border-zk-border text-zk-text placeholder-zk-muted text-[13px] focus:outline-none focus:border-zk-accent transition-colors"
+                  className="w-40 sm:w-48 h-8 pl-8 pr-3 bg-zk-bg rounded-md border border-zk-border text-zk-text placeholder-zk-muted text-[13px] focus:outline-none focus:border-zk-accent transition-colors"
                 />
               </div>
+
+              {/* Filter Modal (Dropdown for Statuses: All, Open, Resolved, Verified) */}
+              <div className="relative">
+                <button
+                  type="button"
+                  aria-label="Open filter modal"
+                  onClick={() => {
+                    setFilterModalOpen((prev) => !prev);
+                    setPopularTagsOpen(false);
+                  }}
+                  className={`flex items-center gap-1.5 h-8 px-2.5 rounded-md border text-[13px] transition-colors cursor-pointer ${
+                    statusFilter !== "all" || filterModalOpen
+                      ? "bg-zk-tint border-zk-accent/40 text-zk-accent font-semibold"
+                      : "bg-zk-chip hover:bg-zk-seg border-zk-border text-zk-text"
+                  }`}
+                >
+                  <Icon size={13} className="text-zk-muted">
+                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                  </Icon>
+                  <span>Filter</span>
+                  {statusFilter !== "all" && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-zk-accent" />
+                  )}
+                  <Icon size={11} className="text-zk-muted">
+                    <path d="m6 9 6 6 6-6" />
+                  </Icon>
+                </button>
+
+                {filterModalOpen && (
+                  <div className="absolute right-0 top-full mt-1.5 w-48 rounded-xl bg-zk-surface border border-zk-border shadow-xl p-2 z-40 flex flex-col gap-1">
+                    <div className="px-2 py-1 text-[11px] uppercase tracking-wider text-zk-muted font-semibold border-b border-zk-border mb-1">
+                      Filter by Status
+                    </div>
+                    {(
+                      [
+                        { id: "all", label: "All Statuses" },
+                        { id: "open", label: "Open Only" },
+                        { id: "resolved", label: "Resolved" },
+                        { id: "verified", label: "Verified Only" },
+                      ] as const
+                    ).map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setStatusFilter(item.id);
+                          setFilterModalOpen(false);
+                        }}
+                        className={`w-full px-2.5 py-1.5 text-left text-[12px] rounded-md transition-colors cursor-pointer flex items-center justify-between ${
+                          statusFilter === item.id
+                            ? "bg-zk-tint text-zk-accent font-semibold"
+                            : "text-zk-text2 hover:text-zk-text hover:bg-zk-chip"
+                        }`}
+                      >
+                        <span>{item.label}</span>
+                        {statusFilter === item.id && (
+                          <Icon size={12} className="text-zk-accent">
+                            <polyline points="20 6 9 17 4 12" />
+                          </Icon>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Popular Dropdown for Popular Tags */}
+              <div className="relative">
+                <button
+                  type="button"
+                  aria-label="Open popular tags dropdown"
+                  onClick={() => {
+                    setPopularTagsOpen((prev) => !prev);
+                    setFilterModalOpen(false);
+                  }}
+                  className={`flex items-center gap-1.5 h-8 px-2.5 rounded-md border text-[13px] transition-colors cursor-pointer ${
+                    selectedTag || popularTagsOpen
+                      ? "bg-zk-tint border-zk-accent/40 text-zk-accent font-semibold"
+                      : "bg-zk-chip hover:bg-zk-seg border-zk-border text-zk-text"
+                  }`}
+                >
+                  <Icon size={13} className="text-zk-muted">
+                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+                    <line x1="7" y1="7" x2="7.01" y2="7" />
+                  </Icon>
+                  <span>Popular</span>
+                  {selectedTag && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-zk-accent" />
+                  )}
+                  <Icon size={11} className="text-zk-muted">
+                    <path d="m6 9 6 6 6-6" />
+                  </Icon>
+                </button>
+
+                {popularTagsOpen && (
+                  <div className="absolute right-0 top-full mt-1.5 w-52 rounded-xl bg-zk-surface border border-zk-border shadow-xl p-2.5 z-40 flex flex-col gap-2">
+                    <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-zk-muted font-semibold border-b border-zk-border pb-1">
+                      <span>Popular Tags</span>
+                      {selectedTag && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedTag(null);
+                            setPopularTagsOpen(false);
+                          }}
+                          className="text-zk-accent hover:underline lowercase normal-case text-[11px] cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1 pt-0.5 max-h-48 overflow-y-auto">
+                      {POPULAR_TAGS.map((tag) => {
+                        const active =
+                          selectedTag === tag || selectedTag === `#${tag}`;
+                        return (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => {
+                              setSelectedTag(active ? null : tag);
+                              setPopularTagsOpen(false);
+                            }}
+                            className={`px-2 py-1 rounded text-[11px] border transition-colors cursor-pointer ${
+                              active
+                                ? "bg-zk-tint border-zk-accent/40 text-zk-accent font-semibold"
+                                : "bg-zk-chip hover:bg-zk-seg border-zk-border text-zk-text2 hover:text-zk-text"
+                            }`}
+                          >
+                            {tag}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Sort Menu */}
               <button
                 type="button"
                 onClick={() =>
@@ -705,22 +944,14 @@ export function PublicMessageBoard({
                   <path d="m6 9 6 6 6-6" />
                 </Icon>
               </button>
-              <button
-                type="button"
-                onClick={() => setView("new")}
-                className="flex items-center gap-1.5 h-8 px-3 rounded-md bg-electric-blue-strong hover:bg-electric-blue text-white font-semibold text-[13px] transition-colors shadow-xs cursor-pointer"
-              >
-                <Icon size={14}>
-                  <path d="M12 5v14M5 12h14" />
-                </Icon>
-                <span>New post</span>
-              </button>
             </div>
           </div>
 
           {/* Main Workbench Grid: Left Sidebar + Compact Cards List */}
-          <div className="grid grid-cols-1 lg:grid-cols-[230px_1fr] gap-6 items-start">
-            {renderSidebar()}
+          <div className="grid grid-cols-1 lg:grid-cols-[230px_1fr] gap-6 items-stretch flex-1">
+            <div className="lg:border-r lg:border-zk-border lg:pr-6 flex flex-col">
+              {renderSidebar()}
+            </div>
 
             {/* Right Compact Discussion Cards Content Area */}
             <div className="flex flex-col gap-2 min-w-0">
@@ -905,8 +1136,8 @@ export function PublicMessageBoard({
           </div>
 
           {/* Main Workspace Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-[230px_1fr] gap-6 items-start">
-            <div className="bg-zk-surface border border-zk-border rounded-xl p-3 lg:sticky lg:top-20 self-start">
+          <div className="grid grid-cols-1 lg:grid-cols-[230px_1fr] gap-6 items-stretch">
+            <div className="bg-zk-surface border border-zk-border rounded-xl p-3 flex flex-col">
               {renderSidebar()}
             </div>
 
