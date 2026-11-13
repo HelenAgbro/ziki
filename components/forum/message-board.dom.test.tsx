@@ -17,7 +17,7 @@ describe("PublicMessageBoard", () => {
     expect(screen.getByRole("button", { name: /^All$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Open$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Resolved$/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /\+ New post/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /New post/i })).toBeInTheDocument();
 
     // More menu opens Verified option
     const moreBtn = screen.getByRole("button", { name: /More/i });
@@ -42,17 +42,24 @@ describe("PublicMessageBoard", () => {
     );
     expect(screen.getByRole("button", { name: /Back to discussions/i })).toBeInTheDocument();
     expect(screen.getByText(/Proposed Solutions & Replies/i)).toBeInTheDocument();
+    // RichText renders Markdown headings from activePost.content as heading elements
+    expect(screen.getByRole("heading", { name: /Context/i })).toBeInTheDocument();
+    // MarkdownEditor renders Write / Preview buttons in the reply composer
+    expect(screen.getByRole("button", { name: /^Write$/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Preview$/i })).toBeInTheDocument();
   });
 
-  it("opens new post composer without Why Context when '+ New post' is clicked", async () => {
+  it("opens new post composer without Why Context when 'New post' is clicked", async () => {
     const user = userEvent.setup();
     render(<PublicMessageBoard />);
 
-    const postBtn = screen.getByRole("button", { name: /\+ New post/i });
+    const postBtn = screen.getByRole("button", { name: /New post/i });
     await user.click(postBtn);
 
     expect(screen.getByText(/Create New Forum Post/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Brief summary of request or announcement/i)).toBeInTheDocument();
     expect(screen.queryByText(/Why Context/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Write$/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Preview$/i })).toBeInTheDocument();
   });
 });

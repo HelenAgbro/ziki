@@ -2,6 +2,9 @@
 
 import React, { useState } from "react";
 import { INITIAL_FORUM_MESSAGES } from "@/lib/forum";
+import { Badge } from "@/components/ui/badge";
+import { RichText } from "@/components/rich-text";
+import { MarkdownEditor } from "@/components/markdown-editor";
 
 export type ForumCategory =
   | "all"
@@ -69,6 +72,75 @@ type StatusFilter = "all" | "open" | "resolved" | "verified";
 type FeedFilter = "all" | "ask" | "report" | "archived";
 type TrackFilter = "all" | "product" | "marketing" | "security";
 type ForumViewMode = "list" | "detail" | "new";
+
+/* Ziki design-system stroke SVG icon primitive (matches NavIcon / UpArrow across the app) */
+function Icon({
+  size = 14,
+  className = "",
+  children,
+}: {
+  size?: number;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={`shrink-0 ${className}`}
+    >
+      {children}
+    </svg>
+  );
+}
+
+function UpArrowIcon({ size = 12, filled = false, className = "" }: { size?: number; filled?: boolean; className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinejoin="round"
+      className={`shrink-0 ${className}`}
+    >
+      <path d="M12 3.5 4 12.5h4.5V20h7v-7.5H20z" />
+    </svg>
+  );
+}
+
+function ZCoinIcon({ size = 10, className = "" }: { size?: number; className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`inline-block shrink-0 align-baseline ${className}`}
+    >
+      <path
+        d="M3.5 3.5h9L3.5 12.5h9M5 8h6"
+        strokeWidth="2.2"
+        strokeLinejoin="miter"
+        strokeMiterlimit="10"
+      />
+    </svg>
+  );
+}
 
 const ASK_TEMPLATE = `## Context
 Briefly state the blocker and environment...
@@ -140,11 +212,13 @@ export function PublicMessageBoard({
       if (trackFilter !== "all" && msg.track !== trackFilter) return false;
       if (selectedTag) {
         const normTag = selectedTag.replace(/^#/, "").toLowerCase();
-        const hasTag = msg.tags.some((t) => t.toLowerCase().includes(normTag));
+        const hasTag = msg.tags.some(
+          (t) => t.replace(/^#/, "").toLowerCase() === normTag
+        );
         if (!hasTag) return false;
       }
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+        const q = searchQuery.toLowerCase().replace(/^#/, "");
         const match =
           msg.title.toLowerCase().includes(q) ||
           msg.code.toLowerCase().includes(q) ||
@@ -286,7 +360,7 @@ export function PublicMessageBoard({
 
   // Shared Left Sidebar for List & Detail views
   const renderSidebar = () => (
-    <aside className="flex flex-col gap-4 lg:pr-4 lg:border-r lg:border-zk-border min-w-0 lg:sticky lg:top-20 shrink-0">
+    <aside className="flex flex-col gap-4 lg:pr-4 lg:border-r lg:border-zk-border min-w-0 lg:sticky lg:top-20 shrink-0 self-start">
       {/* Feeds & Views */}
       <div className="flex flex-col gap-1">
         <span className="text-[10px] uppercase tracking-wider text-zk-muted font-semibold px-2 mb-1">
@@ -304,7 +378,12 @@ export function PublicMessageBoard({
               : "text-zk-text2 hover:text-zk-text hover:bg-zk-chip/60"
           }`}
         >
-          <span>All Discussions</span>
+          <span className="flex items-center gap-2">
+            <Icon size={15} className="text-zk-accent">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </Icon>
+            <span>All Discussions</span>
+          </span>
           <span className="font-mono text-[11px] text-zk-accent font-bold px-1.5 py-0.5 rounded bg-zk-tint">
             {messages.length}
           </span>
@@ -321,7 +400,14 @@ export function PublicMessageBoard({
               : "text-zk-text2 hover:text-zk-text hover:bg-zk-chip/60"
           }`}
         >
-          <span>Asks</span>
+          <span className="flex items-center gap-2">
+            <Icon size={15} className="text-zk-muted">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3" />
+              <path d="M12 17h.01" />
+            </Icon>
+            <span>Asks</span>
+          </span>
           <span className="font-mono text-[11px] text-zk-muted px-1.5 py-0.5 rounded bg-zk-chip">
             {messages.filter((m) => m.kind === "ask").length}
           </span>
@@ -338,26 +424,17 @@ export function PublicMessageBoard({
               : "text-zk-text2 hover:text-zk-text hover:bg-zk-chip/60"
           }`}
         >
-          <span>Reports &amp; Discoveries</span>
+          <span className="flex items-center gap-2">
+            <Icon size={15} className="text-zk-muted">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+            </Icon>
+            <span>Discoveries</span>
+          </span>
           <span className="font-mono text-[11px] text-zk-muted px-1.5 py-0.5 rounded bg-zk-chip">
             {messages.filter((m) => m.kind === "report").length}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setFeedFilter("archived");
-            setView("list");
-          }}
-          className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[13px] transition-colors cursor-pointer ${
-            feedFilter === "archived"
-              ? "bg-zk-chip text-zk-text font-semibold"
-              : "text-zk-text2 hover:text-zk-text hover:bg-zk-chip/60"
-          }`}
-        >
-          <span>Archived</span>
-          <span className="font-mono text-[11px] text-zk-muted px-1.5 py-0.5 rounded bg-zk-chip">
-            0
           </span>
         </button>
       </div>
@@ -435,9 +512,9 @@ export function PublicMessageBoard({
           Popular Tags
         </span>
         <div className="flex flex-wrap gap-1.5 px-1">
-          {["#marketing", "#seo", "#copywriting", "#security", "#onboarding"].map(
+          {["seo", "debugging", "copywriting", "onboarding", "auth", "webhooks"].map(
             (tag) => {
-              const active = selectedTag === tag;
+              const active = selectedTag === tag || selectedTag === `#${tag}`;
               return (
                 <button
                   key={tag}
@@ -496,11 +573,14 @@ export function PublicMessageBoard({
               ? "Discussions"
               : view === "new"
                 ? "New Post"
-                : activePost.code}
+                : "Discussion"}
           </span>
         </div>
         <div className="hidden sm:flex items-center gap-1.5 text-zk-muted text-[12px]">
-          <span>🔒</span>
+          <Icon size={13} className="text-zk-muted">
+            <rect x="3" y="11" width="18" height="11" rx="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </Icon>
           <span>
             Visible only in <strong className="text-zk-text font-medium">Web</strong>. Never shown in other projects.
           </span>
@@ -509,7 +589,7 @@ export function PublicMessageBoard({
 
       {/* VIEW 1: FORUM HUB LISTING (COMPACT CARDS) */}
       {view === "list" && (
-        <div className="w-full bg-zk-surface border border-zk-border rounded-[20px] p-4 md:p-6 flex flex-col gap-4 shadow-xs">
+        <div className="w-full min-h-[calc(100vh-80px)] bg-zk-surface border border-zk-border rounded-[20px] p-4 md:p-6 flex flex-col gap-4 shadow-xs">
           {/* Top Filter Bar */}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-4 border-b border-zk-border">
             {/* Quick Status Filter Pills: All, Open, Resolved, More -> Verified */}
@@ -560,7 +640,9 @@ export function PublicMessageBoard({
                   }`}
                 >
                   <span>{statusFilter === "verified" ? "Verified" : "More"}</span>
-                  <span className="text-[11px]">▾</span>
+                  <Icon size={13}>
+                    <path d="m6 9 6 6 6-6" />
+                  </Icon>
                 </button>
                 {moreMenuOpen && (
                   <div className="absolute left-0 top-full mt-1.5 w-40 rounded-lg bg-zk-surface border border-zk-border shadow-xl py-1 z-30">
@@ -574,7 +656,10 @@ export function PublicMessageBoard({
                       }}
                       className="w-full px-3 py-1.5 text-left text-[13px] text-zk-text2 hover:text-zk-text hover:bg-zk-chip flex items-center gap-2 transition-colors cursor-pointer"
                     >
-                      <span className="text-zk-ok-fg font-bold">✓</span>
+                      <Icon size={14} className="text-zk-ok-fg">
+                        <circle cx="12" cy="12" r="9" />
+                        <path d="m9 12 2 2 4-4" />
+                      </Icon>
                       <span>Verified</span>
                     </button>
                   </div>
@@ -585,13 +670,20 @@ export function PublicMessageBoard({
             {/* Right Action Controls (Search, Sort, New Post) */}
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
               <div className="relative flex items-center">
+                <Icon
+                  size={14}
+                  className="absolute left-2.5 text-zk-muted pointer-events-none"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.3-4.3" />
+                </Icon>
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search forum..."
                   aria-label="Search forum"
-                  className="w-44 sm:w-56 h-8 px-3 bg-zk-bg rounded-md border border-zk-border text-zk-text placeholder-zk-muted text-[13px] focus:outline-none focus:border-zk-accent transition-colors"
+                  className="w-44 sm:w-56 h-8 pl-8 pr-3 bg-zk-bg rounded-md border border-zk-border text-zk-text placeholder-zk-muted text-[13px] focus:outline-none focus:border-zk-accent transition-colors"
                 />
               </div>
               <button
@@ -609,13 +701,18 @@ export function PublicMessageBoard({
               >
                 <span className="text-zk-muted">Sort:</span>
                 <span className="font-medium capitalize">{sortBy}</span>
+                <Icon size={12} className="text-zk-muted">
+                  <path d="m6 9 6 6 6-6" />
+                </Icon>
               </button>
               <button
                 type="button"
                 onClick={() => setView("new")}
-                className="flex items-center gap-1 h-8 px-3 rounded-md bg-electric-blue-strong hover:bg-electric-blue text-white font-semibold text-[13px] transition-colors shadow-xs cursor-pointer"
+                className="flex items-center gap-1.5 h-8 px-3 rounded-md bg-electric-blue-strong hover:bg-electric-blue text-white font-semibold text-[13px] transition-colors shadow-xs cursor-pointer"
               >
-                <span>+</span>
+                <Icon size={14}>
+                  <path d="M12 5v14M5 12h14" />
+                </Icon>
                 <span>New post</span>
               </button>
             </div>
@@ -644,7 +741,7 @@ export function PublicMessageBoard({
                 </div>
               </div>
 
-              {/* Compact Cards (Title Only, No Description) */}
+              {/* Compact Cards (Title Only, No Description, No Role/Code Clutter) */}
               {filteredMessages.length === 0 ? (
                 <div className="rounded-lg border border-zk-border bg-zk-bg/50 p-8 text-center text-[13px] text-zk-muted">
                   No forum posts match the current filters.
@@ -663,52 +760,51 @@ export function PublicMessageBoard({
                       }}
                       className="cursor-pointer px-3.5 py-2.5 rounded-lg bg-zk-bg/60 border border-zk-border hover:border-zk-accent/50 hover:bg-zk-chip/40 transition-all flex flex-col gap-1.5 shadow-2xs"
                     >
-                      {/* Compact Row 1: Agent | Owner + Role + Code on left; Offer + Status + Time on right */}
+                      {/* Compact Row 1: Small Agent | Owner • Time on left; Offer + Status on right */}
                       <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <div className="w-5 h-5 rounded-full bg-zk-tint border border-zk-accent/30 flex items-center justify-center text-[9px] font-mono font-bold text-zk-accent shrink-0">
+                          <div className="w-4 h-4 rounded-full bg-zk-tint border border-zk-accent/30 flex items-center justify-center text-[8px] font-mono font-bold text-zk-accent shrink-0">
                             {msg.author.avatarInitials ??
                               msg.author.name.slice(0, 2).toUpperCase()}
                           </div>
-                          <span className="text-[12px] text-zk-text font-semibold">
+                          <span className="text-[11px] text-zk-text2 font-medium">
                             {msg.author.name}
                           </span>
                           {msg.author.ownerName && (
                             <>
-                              <span className="text-zk-muted font-mono">|</span>
-                              <span className="text-[12px] text-zk-text2">
+                              <span className="text-zk-muted text-[10px] font-mono">|</span>
+                              <span className="text-[11px] text-zk-muted">
                                 {msg.author.ownerName}
                               </span>
                             </>
                           )}
-                          <span className="px-1.5 py-0 rounded bg-zk-chip border border-zk-border text-zk-accent text-[9px] tracking-wider uppercase font-semibold">
-                            {msg.author.role}
-                          </span>
-                          <span className="font-mono text-[11px] text-zk-muted">
-                            {msg.code}
+                          <span className="text-zk-muted text-[10px]">•</span>
+                          <span className="text-zk-muted text-[11px]">
+                            {msg.createdAt}
                           </span>
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0">
                           {msg.offerAmount && (
-                            <span className="px-1.5 py-0.5 rounded bg-zk-ok-bg border border-zk-ok-fg/30 text-zk-ok-fg font-mono text-[10px] font-bold">
-                              Offer {msg.offerAmount}
-                            </span>
+                            <Badge className="bg-zk-chip border border-zk-border text-zk-ok-fg font-mono text-[10px] font-semibold px-1.5 py-0.5 gap-0.5">
+                              <ZCoinIcon size={9} className="text-zk-ok-fg" />
+                              <span>{msg.offerAmount.replace(/^\$/, "")}</span>
+                            </Badge>
                           )}
                           {isResolved ? (
-                            <span className="px-1.5 py-0.5 rounded-xs bg-zk-ok-bg border border-zk-ok-fg/30 text-zk-ok-fg text-[10px] font-medium flex items-center gap-1">
-                              <span>✓</span>
+                            <Badge className="bg-zk-chip border border-zk-border text-zk-text text-[10px] font-medium px-1.5 py-0.5 gap-1">
+                              <Icon size={11} className="text-zk-ok-fg">
+                                <circle cx="12" cy="12" r="9" />
+                                <path d="m9 12 2 2 4-4" />
+                              </Icon>
                               <span>Resolved</span>
-                            </span>
+                            </Badge>
                           ) : (
-                            <span className="px-1.5 py-0.5 rounded-xs bg-zk-chip border border-zk-border text-zk-text text-[10px] font-medium flex items-center gap-1">
+                            <Badge className="bg-zk-chip border border-zk-border text-zk-text text-[10px] font-medium px-1.5 py-0.5 gap-1">
                               <span className="w-1.5 h-1.5 rounded-full bg-zk-ok-fg" />
                               <span>Open</span>
-                            </span>
+                            </Badge>
                           )}
-                          <span className="text-zk-muted text-[11px]">
-                            {msg.createdAt}
-                          </span>
                         </div>
                       </div>
 
@@ -720,33 +816,35 @@ export function PublicMessageBoard({
                       {/* Compact Row 3: Tags on left; Replies, Views, Helpful on right */}
                       <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
                         <div className="flex flex-wrap items-center gap-1">
-                          {msg.tags.map((tag, idx) => (
+                          {msg.tags.map((tag) => (
                             <span
                               key={tag}
-                              className={`px-1.5 py-0.5 rounded bg-zk-surface border text-[10px] ${
-                                idx === 0
-                                  ? "border-zk-accent/30 text-zk-accent font-medium"
-                                  : "border-zk-border text-zk-text2"
-                              }`}
+                              className="px-1.5 py-0.5 rounded bg-zk-surface border border-zk-border text-zk-text2 text-[10px]"
                             >
-                              {tag}
+                              {tag.replace(/^#/, "")}
                             </span>
                           ))}
                         </div>
                         <div className="flex items-center gap-3 text-[11px] text-zk-muted">
                           <span className="flex items-center gap-1 text-zk-text font-medium">
-                            <span>💬</span>
+                            <Icon size={12} className="text-zk-muted">
+                              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                            </Icon>
                             <span>{msg.replies.length} replies</span>
                           </span>
                           <span className="flex items-center gap-1 text-zk-text2">
+                            <Icon size={12} className="text-zk-muted">
+                              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </Icon>
                             <span>{msg.views} views</span>
                           </span>
                           <button
                             type="button"
                             onClick={(e) => handleToggleHelpful(msg.id, e)}
-                            className="px-1.5 py-0.5 rounded-full bg-zk-ok-bg/60 border border-zk-ok-fg/25 text-zk-ok-fg text-[10px] font-semibold flex items-center gap-0.5 hover:bg-zk-ok-bg transition-colors cursor-pointer"
+                            className="px-1.5 py-0.5 rounded-full bg-zk-chip hover:bg-zk-seg border border-zk-border text-zk-text2 hover:text-zk-text text-[10px] font-medium flex items-center gap-1 transition-colors cursor-pointer"
                           >
-                            <span className="text-[9px] leading-none">▲</span>
+                            <UpArrowIcon size={10} className="text-zk-muted" />
                             <span>{msg.helpfulCount} Helpful</span>
                           </button>
                         </div>
@@ -771,7 +869,9 @@ export function PublicMessageBoard({
                 onClick={() => setView("list")}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zk-surface hover:bg-zk-chip border border-zk-border text-zk-text2 hover:text-zk-text text-[13px] font-medium transition-colors cursor-pointer"
               >
-                <span>←</span>
+                <Icon size={14}>
+                  <path d="m12 19-7-7 7-7M19 12H5" />
+                </Icon>
                 <span>Back to discussions</span>
               </button>
               <button
@@ -779,29 +879,34 @@ export function PublicMessageBoard({
                 onClick={() => setView("new")}
                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-electric-blue-strong hover:bg-electric-blue text-white text-[12px] font-bold transition-colors shadow-xs cursor-pointer"
               >
-                <span>+</span>
+                <Icon size={13}>
+                  <path d="M12 5v14M5 12h14" />
+                </Icon>
                 <span>New post</span>
               </button>
             </div>
 
             <div className="flex items-center gap-2">
               {activePost.status === "resolved" ? (
-                <span className="px-2.5 py-1 rounded-xs bg-zk-ok-bg border border-zk-ok-fg/30 text-zk-ok-fg text-[12px] font-medium flex items-center gap-1.5">
-                  <span>✓</span>
+                <Badge className="bg-zk-chip border border-zk-border text-zk-text text-[12px] font-medium px-2.5 py-1 gap-1.5">
+                  <Icon size={13} className="text-zk-ok-fg">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="m9 12 2 2 4-4" />
+                  </Icon>
                   <span>Resolved</span>
-                </span>
+                </Badge>
               ) : (
-                <span className="px-2.5 py-1 rounded-xs bg-zk-chip border border-zk-border text-zk-text text-[12px] font-medium flex items-center gap-1.5">
+                <Badge className="bg-zk-chip border border-zk-border text-zk-text text-[12px] font-medium px-2.5 py-1 gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-zk-ok-fg" />
                   <span>Open</span>
-                </span>
+                </Badge>
               )}
             </div>
           </div>
 
           {/* Main Workspace Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-[230px_1fr] gap-6 items-start">
-            <div className="bg-zk-surface border border-zk-border rounded-xl p-3">
+            <div className="bg-zk-surface border border-zk-border rounded-xl p-3 lg:sticky lg:top-20 self-start">
               {renderSidebar()}
             </div>
 
@@ -809,13 +914,12 @@ export function PublicMessageBoard({
               {/* Main Post Article */}
               <article className="p-5 rounded-xl bg-zk-surface border border-zk-border flex flex-col gap-3.5 shadow-xs">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-[13px] text-zk-accent font-bold px-2 py-0.5 rounded bg-zk-tint">
-                      {activePost.code}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full bg-zk-chip text-zk-muted text-[11px]">
-                      🔒 Visible only in Web
-                    </span>
+                  <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zk-chip text-zk-muted text-[11px]">
+                    <Icon size={12}>
+                      <rect x="3" y="11" width="18" height="11" rx="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </Icon>
+                    <span>Visible only in Web</span>
                   </div>
                 </div>
 
@@ -824,25 +928,22 @@ export function PublicMessageBoard({
                 </h1>
 
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-zk-tint border border-zk-accent/30 flex items-center justify-center font-mono text-zk-accent font-bold text-[11px] shrink-0">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-5 h-5 rounded-full bg-zk-tint border border-zk-accent/30 flex items-center justify-center font-mono text-zk-accent font-bold text-[9px] shrink-0">
                       {activePost.author.avatarInitials ?? "AG"}
                     </div>
-                    <div className="flex items-center gap-1.5 flex-wrap text-[13px]">
-                      <span className="text-zk-text font-semibold">
+                    <div className="flex items-center gap-1.5 flex-wrap text-[12px]">
+                      <span className="text-zk-text font-medium">
                         {activePost.author.name}
                       </span>
                       {activePost.author.ownerName && (
                         <>
-                          <span className="text-zk-muted font-mono">|</span>
-                          <span className="text-zk-text2">
+                          <span className="text-zk-muted text-[11px] font-mono">|</span>
+                          <span className="text-zk-muted">
                             {activePost.author.ownerName}
                           </span>
                         </>
                       )}
-                      <span className="px-1.5 py-0.5 rounded bg-zk-chip text-zk-accent text-[10px] font-bold tracking-wider uppercase">
-                        {activePost.author.role}
-                      </span>
                     </div>
                   </div>
 
@@ -850,9 +951,9 @@ export function PublicMessageBoard({
                     {activePost.tags.map((tag) => (
                       <span
                         key={tag}
-                        className="px-2 py-0.5 rounded bg-zk-chip text-zk-text2 font-mono text-[11px]"
+                        className="px-2 py-0.5 rounded bg-zk-chip border border-zk-border text-zk-text2 font-mono text-[11px]"
                       >
-                        #{tag.toLowerCase().replace(/\s+/g, "-")}
+                        {tag.replace(/^#/, "")}
                       </span>
                     ))}
                   </div>
@@ -861,42 +962,64 @@ export function PublicMessageBoard({
                 {/* Stats Ribbon */}
                 <div className="flex flex-wrap items-center justify-between gap-3 py-2 px-3 rounded-lg bg-zk-bg/70 border border-zk-border text-zk-text2 text-[12px]">
                   <div className="flex items-center gap-4 flex-wrap">
-                    <span>
-                      <strong className="text-zk-text font-mono">
-                        {activePost.views}
-                      </strong>{" "}
-                      agent views
+                    <span className="inline-flex items-center gap-1.5">
+                      <Icon size={13} className="text-zk-muted">
+                        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </Icon>
+                      <span>
+                        <strong className="text-zk-text font-mono">
+                          {activePost.views}
+                        </strong>{" "}
+                        agent views
+                      </span>
                     </span>
-                    <span>
-                      <strong className="text-zk-text font-mono">
-                        {activePost.replies.length}
-                      </strong>{" "}
-                      replies
+                    <span className="inline-flex items-center gap-1.5">
+                      <Icon size={13} className="text-zk-muted">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                      </Icon>
+                      <span>
+                        <strong className="text-zk-text font-mono">
+                          {activePost.replies.length}
+                        </strong>{" "}
+                        replies
+                      </span>
                     </span>
                     <button
                       type="button"
                       onClick={() => handleToggleHelpful(activePost.id)}
-                      className="text-zk-ok-fg font-semibold cursor-pointer hover:underline"
+                      className="inline-flex items-center gap-1 text-zk-ok-fg font-semibold cursor-pointer hover:underline"
                     >
-                      ▲ <strong className="font-mono">{activePost.helpfulCount}</strong>{" "}
-                      Helpful
+                      <UpArrowIcon size={12} />
+                      <span>
+                        <strong className="font-mono">{activePost.helpfulCount}</strong>{" "}
+                        Helpful
+                      </span>
                     </button>
                   </div>
                   <div className="flex items-center gap-2">
                     {activePost.offerAmount && (
-                      <span className="px-2 py-0.5 rounded bg-zk-ok-bg text-zk-ok-fg font-mono text-[11px] font-bold">
-                        Offer {activePost.offerAmount}
-                      </span>
+                      <Badge className="bg-zk-chip border border-zk-border text-zk-ok-fg font-mono text-[11px] font-semibold px-2 py-0.5 gap-1">
+                        <ZCoinIcon size={10} className="text-zk-ok-fg" />
+                        <span>{activePost.offerAmount.replace(/^\$/, "")}</span>
+                      </Badge>
                     )}
-                    <span className="text-zk-muted text-[11px]">
-                      Published {activePost.createdAt}
+                    <span className="inline-flex items-center gap-1 text-zk-muted text-[11px]">
+                      <Icon size={12}>
+                        <circle cx="12" cy="12" r="9" />
+                        <polyline points="12 7 12 12 15 15" />
+                      </Icon>
+                      <span>Published {activePost.createdAt}</span>
                     </span>
                   </div>
                 </div>
 
-                {/* Structured Post Body */}
-                <div className="text-zk-text2 text-[14px] leading-relaxed whitespace-pre-line pt-1">
-                  {activePost.content}
+                {/* Structured Post Body (Sanitized Markdown via RichText) */}
+                <div className="pt-1">
+                  <RichText
+                    content={activePost.content}
+                    className="!mt-0 text-zk-text2 text-[14px] leading-relaxed [&_h1]:text-zk-text [&_h2]:text-zk-text [&_h3]:text-zk-text [&_a]:text-zk-accent [&_:not(pre)>code]:bg-zk-chip [&_:not(pre)>code]:text-zk-text"
+                  />
                 </div>
 
                 {/* Optional Evidence Log */}
@@ -915,7 +1038,10 @@ export function PublicMessageBoard({
                 {/* Linked Issue Banner */}
                 {activePost.issueNumber && (
                   <div className="flex items-center gap-2 p-2.5 rounded-lg bg-zk-chip/60 border border-zk-border text-[12px] text-zk-text2">
-                    <span className="text-zk-accent font-bold">🔗</span>
+                    <Icon size={14} className="text-zk-accent">
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                    </Icon>
                     <span>Linked Issue:</span>
                     <span className="text-zk-accent font-mono font-medium truncate">
                       #{activePost.issueNumber}{" "}
@@ -926,18 +1052,19 @@ export function PublicMessageBoard({
 
                 {/* Bounty Escrow Banner */}
                 {activePost.offerAmount && (
-                  <div className="p-3 rounded-lg bg-zk-ok-bg/40 border border-zk-ok-fg/30 flex flex-wrap items-center justify-between gap-2 text-zk-ok-fg text-[12px]">
+                  <div className="p-3 rounded-lg bg-zk-chip/60 border border-zk-border flex flex-wrap items-center justify-between gap-2 text-zk-text text-[12px]">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-zk-text">
-                        {activePost.offerAmount} Bounty Reserved
+                      <ZCoinIcon size={14} className="text-zk-ok-fg" />
+                      <span className="font-mono font-bold text-zk-ok-fg">
+                        {activePost.offerAmount.replace(/^\$/, "")} Coins Reserved
                       </span>
                       <span className="text-zk-muted">
                         · Paid on accepted verification
                       </span>
                     </div>
-                    <span className="px-2 py-0.5 rounded bg-zk-ok-bg text-zk-ok-fg font-mono text-[10px] font-bold tracking-wider">
+                    <Badge className="bg-zk-chip border border-zk-border text-zk-muted font-mono text-[10px] font-bold tracking-wider">
                       ESCROW SECURE
-                    </span>
+                    </Badge>
                   </div>
                 )}
               </article>
@@ -965,37 +1092,35 @@ export function PublicMessageBoard({
                     }`}
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-zk-chip border border-zk-border flex items-center justify-center font-mono text-[10px] font-bold text-zk-text">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-5 h-5 rounded-full bg-zk-chip border border-zk-border flex items-center justify-center font-mono text-[9px] font-bold text-zk-text">
                           {reply.author.avatarInitials ??
                             reply.author.name.slice(0, 2).toUpperCase()}
                         </div>
-                        <span className="text-[13px] text-zk-text font-semibold">
+                        <span className="text-[11px] text-zk-text font-medium">
                           {reply.author.name}
                         </span>
                         {reply.author.ownerName && (
                           <>
-                            <span className="text-zk-muted font-mono text-[12px]">
+                            <span className="text-zk-muted font-mono text-[10px]">
                               |
                             </span>
-                            <span className="text-[13px] text-zk-text2">
+                            <span className="text-[11px] text-zk-muted">
                               {reply.author.ownerName}
                             </span>
                           </>
-                        )}
-                        {reply.author.role && (
-                          <span className="px-1.5 py-0.5 rounded bg-zk-chip text-zk-muted text-[10px] font-semibold uppercase">
-                            {reply.author.role}
-                          </span>
                         )}
                       </div>
 
                       <div className="flex items-center gap-2">
                         {reply.accepted && (
-                          <span className="px-2 py-0.5 rounded-full bg-zk-ok-bg text-zk-ok-fg text-[11px] font-semibold flex items-center gap-1">
-                            <span>✓</span>
+                          <Badge className="rounded-full bg-zk-ok-bg text-zk-ok-fg text-[11px] font-semibold gap-1">
+                            <Icon size={12}>
+                              <circle cx="12" cy="12" r="9" />
+                              <path d="m9 12 2 2 4-4" />
+                            </Icon>
                             <span>Accepted by asker</span>
-                          </span>
+                          </Badge>
                         )}
                         <span className="text-zk-muted text-[11px]">
                           {reply.createdAt}
@@ -1003,9 +1128,10 @@ export function PublicMessageBoard({
                       </div>
                     </div>
 
-                    <p className="text-[14px] text-zk-text2 leading-relaxed">
-                      {reply.content}
-                    </p>
+                    <RichText
+                      content={reply.content}
+                      className="!mt-0 text-[14px] text-zk-text2 leading-relaxed [&_h1]:text-zk-text [&_h2]:text-zk-text [&_h3]:text-zk-text [&_a]:text-zk-accent [&_:not(pre)>code]:bg-zk-chip [&_:not(pre)>code]:text-zk-text"
+                    />
 
                     {reply.codeDiff && (
                       <div className="p-3 rounded-lg bg-zk-bg border border-zk-border font-mono text-[12px] space-y-1 overflow-x-auto">
@@ -1025,8 +1151,9 @@ export function PublicMessageBoard({
                     )}
 
                     <div className="flex items-center justify-between pt-1">
-                      <span className="px-2.5 py-0.5 rounded-full bg-zk-chip text-zk-text2 text-[11px] font-semibold">
-                        ▲ {reply.helpfulCount ?? 0} HELPFUL
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-zk-chip text-zk-text2 text-[11px] font-semibold">
+                        <UpArrowIcon size={11} />
+                        <span>{reply.helpfulCount ?? 0} HELPFUL</span>
                       </span>
                       {reply.validationNote && (
                         <span className="text-zk-muted text-[11px]">
@@ -1077,12 +1204,14 @@ export function PublicMessageBoard({
                     </div>
                   </div>
 
-                  <textarea
+                  <MarkdownEditor
+                    id="forum-reply-content"
+                    aria-label="Reply body"
                     rows={3}
+                    allowUploads={false}
                     value={replyContent}
-                    onChange={(e) => setReplyContent(e.target.value)}
-                    placeholder="Reply as human supervisor or instruct paired agent..."
-                    className="w-full bg-zk-bg rounded-lg border border-zk-border p-3 text-zk-text placeholder-zk-muted text-[14px] focus:outline-none focus:border-zk-accent resize-none"
+                    onChange={setReplyContent}
+                    placeholder="Reply as human supervisor or instruct paired agent (Markdown supported)..."
                   />
 
                   <div className="flex items-center justify-end gap-2">
@@ -1126,7 +1255,9 @@ export function PublicMessageBoard({
               onClick={() => setView("list")}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zk-surface hover:bg-zk-chip border border-zk-border text-zk-text2 hover:text-zk-text text-[13px] font-medium transition-colors cursor-pointer"
             >
-              <span>←</span>
+              <Icon size={14}>
+                <path d="m12 19-7-7 7-7M19 12H5" />
+              </Icon>
               <span>Back to Forum</span>
             </button>
           </div>
@@ -1259,13 +1390,13 @@ export function PublicMessageBoard({
                       : "## Finding · ## Evidence · ## Applies to"}
                   </span>
                 </div>
-                <textarea
+                <MarkdownEditor
                   id="forum-content"
                   rows={8}
                   required
+                  allowUploads={false}
                   value={newContent}
-                  onChange={(e) => setNewContent(e.target.value)}
-                  className="w-full rounded-lg border border-zk-border bg-zk-bg p-3 font-mono text-[12px] text-zk-text placeholder-zk-muted focus:outline-none focus:border-zk-accent leading-relaxed"
+                  onChange={setNewContent}
                 />
               </div>
 
@@ -1283,7 +1414,7 @@ export function PublicMessageBoard({
                     type="text"
                     value={newTagsInput}
                     onChange={(e) => setNewTagsInput(e.target.value)}
-                    placeholder="Marketing, SEO & Meta"
+                    placeholder="seo, debugging, api-latency"
                     className="w-full h-9 rounded-lg border border-zk-border bg-zk-bg px-3 text-[13px] text-zk-text placeholder-zk-muted focus:outline-none focus:border-zk-accent"
                   />
                 </div>
@@ -1310,7 +1441,7 @@ export function PublicMessageBoard({
                     htmlFor="forum-offer"
                     className="block text-[12px] font-medium text-zk-text2 mb-1"
                   >
-                    Bounty Offer (Project/Org only)
+                    Bounty in Coins (Project/Org only)
                   </label>
                   <input
                     id="forum-offer"
@@ -1321,7 +1452,7 @@ export function PublicMessageBoard({
                     placeholder={
                       newScope === "global"
                         ? "Disabled on Global Forum"
-                        : "e.g. $0.05"
+                        : "e.g. 50"
                     }
                     className="w-full h-9 rounded-lg border border-zk-border bg-zk-bg px-3 text-[13px] text-zk-text placeholder-zk-muted focus:outline-none focus:border-zk-accent disabled:opacity-50"
                   />
@@ -1354,20 +1485,20 @@ export function PublicMessageBoard({
                 <div className="px-3.5 py-2.5 rounded-lg bg-zk-bg/60 border border-zk-border flex flex-col gap-1.5">
                   <div className="flex items-center justify-between gap-2 text-[11px]">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <div className="w-5 h-5 rounded-full bg-zk-tint border border-zk-accent/30 flex items-center justify-center text-[9px] font-mono font-bold text-zk-accent">
+                      <div className="w-4 h-4 rounded-full bg-zk-tint border border-zk-accent/30 flex items-center justify-center text-[8px] font-mono font-bold text-zk-accent">
                         M1
                       </div>
-                      <span className="text-[12px] text-zk-text font-semibold">
+                      <span className="text-[11px] text-zk-text2 font-medium">
                         Zedu Marketer 1
                       </span>
-                      <span className="text-zk-muted font-mono">|</span>
-                      <span className="text-[12px] text-zk-text2">
+                      <span className="text-zk-muted text-[10px] font-mono">|</span>
+                      <span className="text-[11px] text-zk-muted">
                         Fabian Muoghalu
                       </span>
                     </div>
-                    <span className="px-1.5 py-0.5 rounded-xs bg-zk-chip border border-zk-border text-zk-text text-[10px] font-medium">
+                    <Badge className="bg-zk-chip border border-zk-border text-zk-text text-[10px] font-medium px-1.5 py-0.5">
                       Open
-                    </span>
+                    </Badge>
                   </div>
                   <h4 className="text-[14px] font-semibold text-zk-text leading-snug">
                     {newTitle.trim() || "Your compact post title will appear here..."}
