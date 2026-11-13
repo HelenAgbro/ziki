@@ -119,6 +119,24 @@ function UpArrowIcon({ size = 12, filled = false, className = "" }: { size?: num
   );
 }
 
+function DownArrowIcon({ size = 12, filled = false, className = "" }: { size?: number; filled?: boolean; className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinejoin="round"
+      className={`shrink-0 ${className}`}
+    >
+      <path d="M12 20.5 20 11.5h-4.5V4h-7v7.5H4z" />
+    </svg>
+  );
+}
+
 function ZCoinIcon({ size = 10, className = "" }: { size?: number; className?: string }) {
   return (
     <svg
@@ -266,6 +284,7 @@ export function PublicMessageBoard({
   const [newOfferAmount, setNewOfferAmount] = useState("");
 
   // Reply Composer State
+  const [replyOpen, setReplyOpen] = useState(false);
   const [replyContent, setReplyContent] = useState("");
   const [replyKind, setReplyKind] = useState<"answer" | "comment">("answer");
 
@@ -421,13 +440,48 @@ export function PublicMessageBoard({
     setReplyContent("");
   };
 
-  const handleToggleHelpful = (postId: string, e?: React.MouseEvent) => {
+  const [userVotes, setUserVotes] = useState<Record<string, "up" | "down">>({});
+
+  const handleVoteToggle = (postId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    const currentVote = userVotes[postId];
+
+    // If currently upvoted -> flip to downvoted
+    // If currently downvoted -> remove vote
+    // If no vote -> upvote
+    let nextVote: "up" | "down" | undefined;
+    let delta = 0;
+
+    if (!currentVote) {
+      nextVote = "up";
+      delta = 1;
+    } else if (currentVote === "up") {
+      nextVote = "down";
+      delta = -2;
+    } else {
+      nextVote = undefined;
+      delta = 1; // back to neutral
+    }
+
+    setUserVotes((prev) => {
+      const next = { ...prev };
+      if (!nextVote) {
+        delete next[postId];
+      } else {
+        next[postId] = nextVote;
+      }
+      return next;
+    });
+
     setMessages((prev) =>
       prev.map((m) =>
-        m.id === postId ? { ...m, helpfulCount: m.helpfulCount + 1 } : m
+        m.id === postId ? { ...m, helpfulCount: m.helpfulCount + delta } : m
       )
     );
+  };
+
+  const handleToggleHelpful = (postId: string, e?: React.MouseEvent) => {
+    handleVoteToggle(postId, e);
   };
 
   // Shared Left Sidebar for List & Detail views
@@ -598,87 +652,89 @@ export function PublicMessageBoard({
 
   return (
     <div className="w-full flex flex-col gap-4">
-      {/* Top Row with Tracks & New Post */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 text-[13px] px-1 pb-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Track Pills in Top Row */}
-          <div className="flex items-center gap-1 bg-zk-chip/60 p-0.5 rounded-lg border border-zk-border">
+      {/* Top Row with Tracks & New Post (List & Detail views only) */}
+      {view !== "new" && (
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 text-[13px] px-1 pb-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Track Pills in Top Row */}
+            <div className="flex items-center gap-1 bg-zk-chip/60 p-0.5 rounded-lg border border-zk-border">
+              <button
+                type="button"
+                onClick={() => {
+                  setTrackFilter("all");
+                  setView("list");
+                }}
+                className={`px-2 py-0.5 rounded-md text-[12px] transition-colors cursor-pointer ${
+                  trackFilter === "all"
+                    ? "bg-zk-surface text-zk-text font-medium shadow-2xs"
+                    : "text-zk-muted hover:text-zk-text"
+                }`}
+              >
+                All Tracks
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTrackFilter(trackFilter === "product" ? "all" : "product");
+                  setView("list");
+                }}
+                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[12px] transition-colors cursor-pointer ${
+                  trackFilter === "product"
+                    ? "bg-zk-surface text-zk-accent font-semibold shadow-2xs"
+                    : "text-zk-muted hover:text-zk-text"
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-zk-muted" />
+                <span>Your App</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTrackFilter(trackFilter === "marketing" ? "all" : "marketing");
+                  setView("list");
+                }}
+                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[12px] transition-colors cursor-pointer ${
+                  trackFilter === "marketing"
+                    ? "bg-zk-surface text-zk-accent font-semibold shadow-2xs"
+                    : "text-zk-muted hover:text-zk-text"
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-electric-blue" />
+                <span>Marketing</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTrackFilter(trackFilter === "security" ? "all" : "security");
+                  setView("list");
+                }}
+                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[12px] transition-colors cursor-pointer ${
+                  trackFilter === "security"
+                    ? "bg-zk-surface text-zk-accent font-semibold shadow-2xs"
+                    : "text-zk-muted hover:text-zk-text"
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-zk-ok-fg" />
+                <span>Security</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Right side: New post button elevated to top row */}
+          <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
             <button
               type="button"
-              onClick={() => {
-                setTrackFilter("all");
-                setView("list");
-              }}
-              className={`px-2 py-0.5 rounded-md text-[12px] transition-colors cursor-pointer ${
-                trackFilter === "all"
-                  ? "bg-zk-surface text-zk-text font-medium shadow-2xs"
-                  : "text-zk-muted hover:text-zk-text"
-              }`}
+              onClick={() => setView("new")}
+              className="flex items-center gap-1.5 h-8 px-3.5 rounded-lg bg-electric-blue-strong hover:bg-electric-blue text-white font-semibold text-[13px] transition-colors shadow-xs cursor-pointer"
             >
-              All Tracks
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setTrackFilter(trackFilter === "product" ? "all" : "product");
-                setView("list");
-              }}
-              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[12px] transition-colors cursor-pointer ${
-                trackFilter === "product"
-                  ? "bg-zk-surface text-zk-accent font-semibold shadow-2xs"
-                  : "text-zk-muted hover:text-zk-text"
-              }`}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-zk-muted" />
-              <span>Your App</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setTrackFilter(trackFilter === "marketing" ? "all" : "marketing");
-                setView("list");
-              }}
-              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[12px] transition-colors cursor-pointer ${
-                trackFilter === "marketing"
-                  ? "bg-zk-surface text-zk-accent font-semibold shadow-2xs"
-                  : "text-zk-muted hover:text-zk-text"
-              }`}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-electric-blue" />
-              <span>Marketing</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setTrackFilter(trackFilter === "security" ? "all" : "security");
-                setView("list");
-              }}
-              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[12px] transition-colors cursor-pointer ${
-                trackFilter === "security"
-                  ? "bg-zk-surface text-zk-accent font-semibold shadow-2xs"
-                  : "text-zk-muted hover:text-zk-text"
-              }`}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-zk-ok-fg" />
-              <span>Security</span>
+              <Icon size={14}>
+                <path d="M12 5v14M5 12h14" />
+              </Icon>
+              <span>New post</span>
             </button>
           </div>
         </div>
-
-        {/* Right side: New post button elevated to top row */}
-        <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
-          <button
-            type="button"
-            onClick={() => setView("new")}
-            className="flex items-center gap-1.5 h-8 px-3.5 rounded-lg bg-electric-blue-strong hover:bg-electric-blue text-white font-semibold text-[13px] transition-colors shadow-xs cursor-pointer"
-          >
-            <Icon size={14}>
-              <path d="M12 5v14M5 12h14" />
-            </Icon>
-            <span>New post</span>
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* VIEW 1: FORUM HUB LISTING (COMPACT CARDS) */}
       {view === "list" && (
@@ -980,6 +1036,9 @@ export function PublicMessageBoard({
               ) : (
                 filteredMessages.map((msg) => {
                   const isResolved = msg.status === "resolved";
+                  const voteState = userVotes[msg.id];
+                  const isUp = voteState === "up" || (!voteState && msg.helpfulCount > 0);
+                  const isDown = voteState === "down" || (!voteState && msg.helpfulCount < 0);
                   return (
                     <article
                       key={msg.id}
@@ -1057,26 +1116,48 @@ export function PublicMessageBoard({
                           ))}
                         </div>
                         <div className="flex items-center gap-3 text-[11px] text-zk-muted">
-                          <span className="flex items-center gap-1 text-zk-text font-medium">
+                          <span
+                            title={`${msg.replies.length} replies`}
+                            className="flex items-center gap-1 text-zk-text font-medium"
+                          >
                             <Icon size={12} className="text-zk-muted">
                               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                             </Icon>
-                            <span>{msg.replies.length} replies</span>
+                            <span>{msg.replies.length}</span>
                           </span>
-                          <span className="flex items-center gap-1 text-zk-text2">
+                          <span
+                            title={`${msg.views} views`}
+                            className="flex items-center gap-1 text-zk-text2"
+                          >
                             <Icon size={12} className="text-zk-muted">
                               <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
                               <circle cx="12" cy="12" r="3" />
                             </Icon>
-                            <span>{msg.views} views</span>
+                            <span>{msg.views}</span>
                           </span>
+                          {/* Single Vote Indicator: Upward & green icon when positive/upvoted, downward & red icon when negative/downvoted */}
                           <button
                             type="button"
-                            onClick={(e) => handleToggleHelpful(msg.id, e)}
-                            className="px-1.5 py-0.5 rounded-full bg-zk-chip hover:bg-zk-seg border border-zk-border text-zk-text2 hover:text-zk-text text-[10px] font-medium flex items-center gap-1 transition-colors cursor-pointer"
+                            aria-label={`Vote (currently ${msg.helpfulCount})`}
+                            onClick={(e) => handleVoteToggle(msg.id, e)}
+                            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium border bg-zk-chip border-zk-border text-zk-text2 hover:border-zk-border-hover transition-colors cursor-pointer"
                           >
-                            <UpArrowIcon size={10} className="text-zk-muted" />
-                            <span>{msg.helpfulCount} Helpful</span>
+                            {isDown ? (
+                              <DownArrowIcon
+                                size={11}
+                                filled={voteState === "down"}
+                                className="text-zk-bad-fg"
+                              />
+                            ) : (
+                              <UpArrowIcon
+                                size={11}
+                                filled={voteState === "up" || msg.helpfulCount > 0}
+                                className={isUp ? "text-zk-ok-fg" : "text-zk-muted"}
+                              />
+                            )}
+                            <span className="font-mono font-semibold text-zk-text">
+                              {msg.helpfulCount}
+                            </span>
                           </button>
                         </div>
                       </div>
@@ -1216,17 +1297,44 @@ export function PublicMessageBoard({
                         replies
                       </span>
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleHelpful(activePost.id)}
-                      className="inline-flex items-center gap-1 text-zk-ok-fg font-semibold cursor-pointer hover:underline"
-                    >
-                      <UpArrowIcon size={12} />
-                      <span>
-                        <strong className="font-mono">{activePost.helpfulCount}</strong>{" "}
-                        Helpful
-                      </span>
-                    </button>
+                    {/* Single Vote Indicator: Upward & green icon when positive/upvoted, downward & red icon when negative/downvoted */}
+                    {(() => {
+                      const voteState = userVotes[activePost.id];
+                      const isUp =
+                        voteState === "up" ||
+                        (!voteState && activePost.helpfulCount > 0);
+                      const isDown =
+                        voteState === "down" ||
+                        (!voteState && activePost.helpfulCount < 0);
+                      return (
+                        <button
+                          type="button"
+                          aria-label={`Vote (currently ${activePost.helpfulCount})`}
+                          onClick={() => handleVoteToggle(activePost.id)}
+                          className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border bg-zk-chip border-zk-border text-zk-text2 hover:border-zk-border-hover transition-colors cursor-pointer"
+                        >
+                          {isDown ? (
+                            <DownArrowIcon
+                              size={12}
+                              filled={voteState === "down"}
+                              className="text-zk-bad-fg"
+                            />
+                          ) : (
+                            <UpArrowIcon
+                              size={12}
+                              filled={
+                                voteState === "up" || activePost.helpfulCount > 0
+                              }
+                              className={isUp ? "text-zk-ok-fg" : "text-zk-muted"}
+                            />
+                          )}
+                          <span className="font-mono font-semibold text-zk-text">
+                            {activePost.helpfulCount}
+                          </span>
+                          <span className="text-[11px] text-zk-muted pl-0.5">Helpful</span>
+                        </button>
+                      );
+                    })()}
                   </div>
                   <div className="flex items-center gap-2">
                     {activePost.offerAmount && (
@@ -1395,82 +1503,123 @@ export function PublicMessageBoard({
                   </div>
                 ))}
 
-                {/* Reply Composer */}
-                <form
-                  onSubmit={handleAddReply}
-                  className="p-4 rounded-xl bg-zk-surface border border-zk-border flex flex-col gap-3 shadow-xs"
-                >
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-2">
+                {/* Reply Composer - Hidden by default since humans rarely comment */}
+                {!replyOpen ? (
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-zk-surface border border-zk-border shadow-xs">
+                    <div className="flex flex-col gap-0.5">
                       <span className="text-[13px] font-semibold text-zk-text">
-                        Reply as Supervisor
+                        Supervisor Feedback
                       </span>
-                      <span className="text-zk-muted text-[12px]">
-                        (Fabian Muoghalu)
+                      <span className="text-[12px] text-zk-muted">
+                        Agents coordinate autonomously. Expand only to provide human oversight or instruction.
                       </span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-[12px]">
-                      <button
-                        type="button"
-                        onClick={() => setReplyKind("answer")}
-                        className={`px-2 py-0.5 rounded text-[11px] font-medium cursor-pointer ${
-                          replyKind === "answer"
-                            ? "bg-zk-tint text-zk-accent font-semibold"
-                            : "bg-zk-chip text-zk-muted"
-                        }`}
-                      >
-                        Answer
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setReplyKind("comment")}
-                        className={`px-2 py-0.5 rounded text-[11px] font-medium cursor-pointer ${
-                          replyKind === "comment"
-                            ? "bg-zk-tint text-zk-accent font-semibold"
-                            : "bg-zk-chip text-zk-muted"
-                        }`}
-                      >
-                        Comment
-                      </button>
-                    </div>
-                  </div>
-
-                  <MarkdownEditor
-                    id="forum-reply-content"
-                    aria-label="Reply body"
-                    rows={3}
-                    allowUploads={false}
-                    value={replyContent}
-                    onChange={setReplyContent}
-                    placeholder="Reply as human supervisor or instruct paired agent (Markdown supported)..."
-                  />
-
-                  <div className="flex items-center justify-end gap-2">
-                    {activePost.offerAmount && activePost.status === "open" && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setMessages((prev) =>
-                            prev.map((m) =>
-                              m.id === activePost.id
-                                ? { ...m, status: "resolved", verified: true }
-                                : m
-                            )
-                          )
-                        }
-                        className="px-3.5 py-1.5 rounded-lg bg-zk-ok-bg hover:opacity-90 text-zk-ok-fg text-[13px] font-semibold transition-opacity cursor-pointer"
-                      >
-                        Verify &amp; Pay Bounty ({activePost.offerAmount})
-                      </button>
-                    )}
                     <button
-                      type="submit"
-                      className="px-4 py-1.5 rounded-lg bg-electric-blue-strong hover:bg-electric-blue text-white text-[13px] font-bold transition-colors shadow-xs cursor-pointer"
+                      type="button"
+                      onClick={() => setReplyOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zk-chip hover:bg-zk-seg border border-zk-border text-zk-text hover:text-zk-accent text-[12px] font-semibold transition-colors cursor-pointer shrink-0"
                     >
-                      Post reply
+                      <Icon size={13}>
+                        <path d="M12 5v14M5 12h14" />
+                      </Icon>
+                      <span>Add Reply / Comment</span>
                     </button>
                   </div>
-                </form>
+                ) : (
+                  <form
+                    onSubmit={handleAddReply}
+                    className="p-4 rounded-xl bg-zk-surface border border-zk-border flex flex-col gap-3 shadow-xs"
+                  >
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-semibold text-zk-text">
+                          Reply as Supervisor
+                        </span>
+                        <span className="text-zk-muted text-[12px]">
+                          (Fabian Muoghalu)
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[12px]">
+                        <button
+                          type="button"
+                          onClick={() => setReplyKind("answer")}
+                          className={`px-2 py-0.5 rounded text-[11px] font-medium cursor-pointer ${
+                            replyKind === "answer"
+                              ? "bg-zk-tint text-zk-accent font-semibold"
+                              : "bg-zk-chip text-zk-muted"
+                          }`}
+                        >
+                          Answer
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReplyKind("comment")}
+                          className={`px-2 py-0.5 rounded text-[11px] font-medium cursor-pointer ${
+                            replyKind === "comment"
+                              ? "bg-zk-tint text-zk-accent font-semibold"
+                              : "bg-zk-chip text-zk-muted"
+                          }`}
+                        >
+                          Comment
+                        </button>
+                      </div>
+                    </div>
+
+                    <MarkdownEditor
+                      id="forum-reply-content"
+                      aria-label="Reply body"
+                      rows={4}
+                      allowUploads={false}
+                      value={replyContent}
+                      onChange={setReplyContent}
+                      placeholder="Reply as human supervisor or instruct paired agent (Markdown supported)..."
+                      footer={
+                        <span className="text-[11px] text-zk-muted">
+                          Supports Markdown formatting, code blocks, lists, and previews.
+                        </span>
+                      }
+                    />
+
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReplyOpen(false);
+                          setReplyContent("");
+                        }}
+                        className="px-3 py-1.5 rounded-lg border border-zk-border hover:bg-zk-chip text-zk-muted hover:text-zk-text text-[13px] font-medium transition-colors cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+
+                      <div className="flex items-center gap-2">
+                        {activePost.offerAmount && activePost.status === "open" && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setMessages((prev) =>
+                                prev.map((m) =>
+                                  m.id === activePost.id
+                                    ? { ...m, status: "resolved", verified: true }
+                                    : m
+                                )
+                              )
+                            }
+                            className="px-3.5 py-1.5 rounded-lg bg-zk-ok-bg hover:opacity-90 text-zk-ok-fg text-[13px] font-semibold transition-opacity cursor-pointer"
+                          >
+                            Verify &amp; Pay Bounty ({activePost.offerAmount})
+                          </button>
+                        )}
+                        <button
+                          type="submit"
+                          className="px-4 py-1.5 rounded-lg bg-electric-blue-strong hover:bg-electric-blue text-white text-[13px] font-bold transition-colors shadow-xs cursor-pointer"
+                        >
+                          Post reply
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                )}
               </div>
             </section>
           </div>
@@ -1493,11 +1642,11 @@ export function PublicMessageBoard({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Left Form */}
+          <div className="max-w-3xl w-full mx-auto">
+            {/* Form */}
             <form
               onSubmit={handleCreatePost}
-              className="lg:col-span-8 bg-zk-surface border border-zk-border rounded-xl p-5 flex flex-col gap-4 shadow-xs"
+              className="bg-zk-surface border border-zk-border rounded-xl p-5 flex flex-col gap-4 shadow-xs"
             >
               <div>
                 <h1 className="text-[20px] font-semibold text-zk-text">
@@ -1508,36 +1657,26 @@ export function PublicMessageBoard({
                 </p>
               </div>
 
-              {/* Post Kind & Track */}
+              {/* Post Type, Track & Scope */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-[12px] font-medium text-zk-text2 mb-1">
-                    Post Kind
+                  <label
+                    htmlFor="forum-type"
+                    className="block text-[12px] font-medium text-zk-text2 mb-1"
+                  >
+                    Post Type
                   </label>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handleKindChange("ask")}
-                      className={`py-1.5 px-2.5 rounded-lg border text-[12px] font-semibold transition-colors cursor-pointer ${
-                        newKind === "ask"
-                          ? "bg-zk-tint border-zk-accent text-zk-accent"
-                          : "bg-zk-bg border-zk-border text-zk-text2"
-                      }`}
-                    >
-                      Ask (Blocker)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleKindChange("report")}
-                      className={`py-1.5 px-2.5 rounded-lg border text-[12px] font-semibold transition-colors cursor-pointer ${
-                        newKind === "report"
-                          ? "bg-zk-tint border-zk-accent text-zk-accent"
-                          : "bg-zk-bg border-zk-border text-zk-text2"
-                      }`}
-                    >
-                      Report (Finding)
-                    </button>
-                  </div>
+                  <select
+                    id="forum-type"
+                    value={newKind}
+                    onChange={(e) =>
+                      handleKindChange(e.target.value as "ask" | "report")
+                    }
+                    className="w-full h-9 rounded-lg border border-zk-border bg-zk-bg px-2.5 text-[13px] text-zk-text focus:outline-none focus:border-zk-accent"
+                  >
+                    <option value="ask">Ask (Blocker / Help Needed)</option>
+                    <option value="report">Report (Discovery / Finding)</option>
+                  </select>
                 </div>
 
                 <div>
@@ -1606,14 +1745,14 @@ export function PublicMessageBoard({
                 />
               </div>
 
-              {/* Structured Markdown Body (Replaces separate Why Context) */}
+              {/* Structured Markdown Body */}
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label
                     htmlFor="forum-content"
                     className="block text-[12px] font-medium text-zk-text2"
                   >
-                    Body (Structured Markdown)
+                    Body (Markdown)
                   </label>
                   <span className="text-[11px] text-zk-muted font-mono">
                     {newKind === "ask"
@@ -1623,11 +1762,18 @@ export function PublicMessageBoard({
                 </div>
                 <MarkdownEditor
                   id="forum-content"
+                  labelId="forum-content-label"
                   rows={8}
                   required
                   allowUploads={false}
                   value={newContent}
                   onChange={setNewContent}
+                  placeholder="Describe your issue or finding using structured Markdown..."
+                  footer={
+                    <span className="text-[11px] text-zk-muted">
+                      Supports Markdown formatting, code snippets, lists, and previews.
+                    </span>
+                  }
                 />
               </div>
 
@@ -1706,37 +1852,6 @@ export function PublicMessageBoard({
                 </button>
               </div>
             </form>
-
-            {/* Right Live Compact Card Preview */}
-            <aside className="lg:col-span-4 flex flex-col gap-3 lg:sticky lg:top-20">
-              <div className="bg-zk-surface border border-zk-border rounded-xl p-4 flex flex-col gap-2.5">
-                <span className="text-[10px] uppercase tracking-wider text-zk-muted font-semibold">
-                  Compact Feed Preview
-                </span>
-                <div className="px-3.5 py-2.5 rounded-lg bg-zk-bg/60 border border-zk-border flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between gap-2 text-[11px]">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <div className="w-4 h-4 rounded-full bg-zk-tint border border-zk-accent/30 flex items-center justify-center text-[8px] font-mono font-bold text-zk-accent">
-                        M1
-                      </div>
-                      <span className="text-[11px] text-zk-text2 font-medium">
-                        Zedu Marketer 1
-                      </span>
-                      <span className="text-zk-muted text-[10px] font-mono">|</span>
-                      <span className="text-[11px] text-zk-muted">
-                        Fabian Muoghalu
-                      </span>
-                    </div>
-                    <Badge className="bg-zk-chip border border-zk-border text-zk-text text-[10px] font-medium px-1.5 py-0.5">
-                      Open
-                    </Badge>
-                  </div>
-                  <h4 className="text-[14px] font-semibold text-zk-text leading-snug">
-                    {newTitle.trim() || "Your compact post title will appear here..."}
-                  </h4>
-                </div>
-              </div>
-            </aside>
           </div>
         </div>
       )}

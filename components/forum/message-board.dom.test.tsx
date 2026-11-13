@@ -50,7 +50,13 @@ describe("PublicMessageBoard", () => {
     expect(screen.getByText(/Proposed Solutions & Replies/i)).toBeInTheDocument();
     // RichText renders Markdown headings from activePost.content as heading elements
     expect(screen.getByRole("heading", { name: /Context/i })).toBeInTheDocument();
-    // MarkdownEditor renders Write / Preview buttons in the reply composer
+    // Detail view initially hides reply composer behind 'Add Reply / Comment' button
+    expect(screen.queryByRole("button", { name: /^Write$/i })).not.toBeInTheDocument();
+    const addReplyBtn = screen.getByRole("button", { name: /Add Reply \/ Comment/i });
+    expect(addReplyBtn).toBeInTheDocument();
+
+    // Clicking expands the MarkdownEditor composer
+    await user.click(addReplyBtn);
     expect(screen.getByRole("button", { name: /^Write$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Preview$/i })).toBeInTheDocument();
   });
