@@ -1,6 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { isQuiet } from "@/lib/security-checks";
+import { ON_CALL_QUIET_AFTER_MS, isQuiet } from "@/lib/security-checks";
 
 /**
  * On-call people (#on-call, 14 Nov plan): a person goes on call, not an agent.
@@ -178,4 +178,109 @@ export async function listOnCallPeople(now = new Date(), db: Db = prisma) {
       guestWorkspaces: person.agents.reduce((sum, agent) => sum + agent.activations.length, 0),
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Picking people for a new workspace (Dave's part D2 calls this)
+
+/**
+ * Up to `n` free on-call people, at random: on call, and with at least one
+ * working agent (not revoked or paused) seen in the last ON_CALL_QUIET_AFTER_MS.
+ * Each comes with all their working agents, who join a new workspace together.
+ * `excludeUserIds` keeps, for example, the workspace's own creator out.
+ */
+export async function pickFreeOnCallPeople(
+  db: Db,
+  n: number,
+  { excludeUserIds = [], now = new Date(), random = Math.random }: { excludeUserIds?: string[]; now?: Date; random?: () => number } = {},
+): Promise<{ userId: string; agentIds: string[] }[]> {
+  if (n <= 0) return [];
+  const since = new Date(now.getTime() - ON_CALL_QUIET_AFTER_MS);
+  const people = await db.user.findMany({
+    where: {
+      onCallAt: { not: null },
+      id: { notIn: excludeUserIds },
+      agents: { some: { revokedAt: null, pausedAt: null, apiKeys: { some: { revokedAt: null, lastUsedAt: { gte: since } } } } },
+    },
+    select: { id: true, agents: { where: { revokedAt: null, pausedAt: null }, select: { id: true } } },
+  });
+  // Shuffle (Fisher-Yates), then keep the first n.
+  for (let i = people.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [people[i], people[j]] = [people[j]!, people[i]!];
+  }
+  return people.slice(0, n).map((person) => ({ userId: person.id, agentIds: person.agents.map((agent) => agent.id) }));
+}
+
+// ---------------------------------------------------------------------------
+// The call log
+
+/** The log looks back this far, and shows at most this many lines. */
+export const CALL_LOG_WINDOW_MS = 48 * 60 * 60 * 1000;
+export const CALL_LOG_LINES = 40;
+
+export type CallLogLine = {
+  kind: "security_part" | "guest_request";
+  at: Date;
+  /** What was needed, in plain words. */
+  what: string;
+  /** The person who picked it up; null when nobody has. */
+  pickedUpBy: string | null;
+  /** How long it took, in ms; null when nobody has picked it up. */
+  waitMs: number | null;
+  /** Nobody picked it up within ON_CALL_QUIET_AFTER_MS. */
+  missed: boolean;
+};
+
+/** Pure: turns the rows into log lines, newest first. */
+export function buildCallLog(
+  parts: ReadonlyArray<{ createdAt: Date; assignedAt: Date | null; title: string; agent: { owner: { name: string | null; email: string } } | null }>,
+  guests: ReadonlyArray<{ createdAt: Date; organisation: { name: string }; agent: { owner: { name: string | null; email: string } } }>,
+  now = new Date(),
+): CallLogLine[] {
+  const lines: CallLogLine[] = [];
+  for (const part of parts) {
+    const picked = part.assignedAt !== null && part.agent !== null;
+    lines.push({
+      kind: "security_part",
+      at: part.createdAt,
+      what: `Security check part: ${part.title}`,
+      pickedUpBy: picked ? (part.agent!.owner.name ?? part.agent!.owner.email) : null,
+      waitMs: picked ? Math.max(0, part.assignedAt!.getTime() - part.createdAt.getTime()) : null,
+      missed: !picked && now.getTime() - part.createdAt.getTime() >= ON_CALL_QUIET_AFTER_MS,
+    });
+  }
+  for (const guest of guests) {
+    lines.push({
+      kind: "guest_request",
+      at: guest.createdAt,
+      what: `New workspace: ${guest.organisation.name}`,
+      pickedUpBy: guest.agent.owner.name ?? guest.agent.owner.email,
+      // A guest is added the moment the workspace is created.
+      waitMs: 0,
+      missed: false,
+    });
+  }
+  return lines.sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, CALL_LOG_LINES);
+}
+
+/** The call log for the staff page: security parts and guest requests of the last 48 hours. */
+export async function onCallLog(now = new Date(), db: Db = prisma): Promise<CallLogLine[]> {
+  const since = new Date(now.getTime() - CALL_LOG_WINDOW_MS);
+  const owner = { select: { owner: { select: { name: true, email: true } } } } as const;
+  const [parts, guests] = await Promise.all([
+    db.securityCheckItem.findMany({
+      where: { kind: "check", createdAt: { gte: since } },
+      orderBy: { createdAt: "desc" },
+      take: CALL_LOG_LINES,
+      select: { createdAt: true, assignedAt: true, title: true, agent: owner },
+    }),
+    db.agentActivation.findMany({
+      where: { guestUntilFirstDelivery: true, createdAt: { gte: since } },
+      orderBy: { createdAt: "desc" },
+      take: CALL_LOG_LINES,
+      select: { createdAt: true, organisation: { select: { name: true } }, agent: owner },
+    }),
+  ]);
+  return buildCallLog(parts, guests, now);
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { cancelOnCallInvite, inviteToOnCall, respondToOnCallInvite } from "@/lib/security-checks/on-call";
+import { buildCallLog, cancelOnCallInvite, inviteToOnCall, pickFreeOnCallPeople, respondToOnCallInvite } from "@/lib/security-checks/on-call";
 
 /** A fake Prisma client: every model method is a mock, and $transaction runs the callback on the same fake. */
 function fakeDb() {
@@ -105,46 +105,52 @@ describe("the invited person answering (#on-call)", () => {
   });
 });
 
-describe("on-call cover: coverage, pick-up speed and who sees it (#on-call)", async () => {
-  const { coverageOf, medianMs, formatWait, canSeeOnCall, recordOnCallSample } = await import("@/lib/on-call-metrics");
+describe("picking free on-call people for a new workspace (#on-call)", () => {
+  const since = new Date(now.getTime() - 15 * 60 * 1000);
 
-  it("coverage is the share of snapshots with at least one agent free", () => {
-    expect(coverageOf([])).toBeNull();
-    expect(coverageOf([{ free: 1 }, { free: 0 }, { free: 2 }, { free: 3 }])).toBe(75);
-  });
-
-  it("pick-up speed is the median wait, in plain words", () => {
-    expect(medianMs([])).toBeNull();
-    expect(medianMs([30_000, 10_000, 20_000])).toBe(20_000);
-    expect(medianMs([10_000, 20_000])).toBe(15_000);
-    expect(formatWait(12_000)).toBe("12s");
-    expect(formatWait(4 * 60_000)).toBe("4m");
-    expect(formatWait(80 * 60_000)).toBe("1h 20m");
-    expect(formatWait(null)).toBe("no parts picked up yet");
-  });
-
-  it("a snapshot counts on-call agents online (not paused, seen recently) and free (room for a part)", async () => {
-    const db = {
-      agent: {
-        findMany: vi.fn().mockResolvedValue([
-          { pausedAt: null, apiKeys: [{ id: "k" }], _count: { securityCheckItems: 0 } },
-          { pausedAt: null, apiKeys: [{ id: "k" }], _count: { securityCheckItems: 2 } },
-          { pausedAt: now, apiKeys: [{ id: "k" }], _count: { securityCheckItems: 0 } },
-          { pausedAt: null, apiKeys: [], _count: { securityCheckItems: 0 } },
-        ]),
+  it("asks only for people on call with a live, unpaused, recently seen agent, and leaves the creator out", async () => {
+    const findMany = vi.fn(async (_args: unknown) => []);
+    await pickFreeOnCallPeople({ user: { findMany } } as never, 3, { excludeUserIds: ["creator"], now });
+    expect(findMany.mock.calls[0]![0]).toMatchObject({
+      where: {
+        onCallAt: { not: null },
+        id: { notIn: ["creator"] },
+        agents: { some: { revokedAt: null, pausedAt: null, apiKeys: { some: { revokedAt: null, lastUsedAt: { gte: since } } } } },
       },
-      onCallSample: { create: vi.fn(), deleteMany: vi.fn() },
-    };
-    expect(await recordOnCallSample(db as never, now)).toEqual({ onCall: 4, online: 2, free: 1 });
-    expect(db.onCallSample.create.mock.calls[0][0].data).toEqual({ at: now, onCall: 4, online: 2, free: 1 });
-    expect(db.onCallSample.deleteMany).toHaveBeenCalled();
+    });
   });
 
-  it("only super admins and people on call see it", async () => {
-    const db = { user: { findUnique: vi.fn().mockResolvedValue({ onCallAt: null }) } };
-    expect(await canSeeOnCall({ id: "u", role: "super_admin" }, db as never)).toBe(true);
-    expect(await canSeeOnCall({ id: "u", role: "user" }, db as never)).toBe(false);
-    db.user.findUnique.mockResolvedValue({ onCallAt: now });
-    expect(await canSeeOnCall({ id: "u", role: "user" }, db as never)).toBe(true);
+  it("returns at most n people, each with all their working agents", async () => {
+    const people = [
+      { id: "ada", agents: [{ id: "a1" }, { id: "a2" }] },
+      { id: "bo", agents: [{ id: "b1" }] },
+      { id: "cy", agents: [{ id: "c1" }] },
+    ];
+    const picked = await pickFreeOnCallPeople({ user: { findMany: vi.fn(async () => people) } } as never, 2, { now, random: () => 0 });
+    expect(picked).toHaveLength(2);
+    const ada = picked.find((p) => p.userId === "ada");
+    if (ada) expect(ada.agentIds).toEqual(["a1", "a2"]);
+    expect(await pickFreeOnCallPeople({} as never, 0)).toEqual([]);
+  });
+});
+
+describe("the call log (#on-call)", () => {
+  const owner = { owner: { name: "Ada", email: "ada@example.com" } };
+
+  it("says who picked up each part and how fast, and flags a part nobody took", () => {
+    const log = buildCallLog(
+      [
+        { createdAt: new Date("2026-11-13T09:00:00Z"), assignedAt: new Date("2026-11-13T09:00:30Z"), title: "Headers", agent: owner },
+        { createdAt: new Date("2026-11-13T09:30:00Z"), assignedAt: null, title: "Secrets", agent: null },
+        { createdAt: new Date("2026-11-13T09:58:00Z"), assignedAt: null, title: "Fresh", agent: null },
+      ],
+      [{ createdAt: new Date("2026-11-13T08:00:00Z"), organisation: { name: "Settle" }, agent: { owner: { name: null, email: "bo@example.com" } } }],
+      now,
+    );
+    expect(log.map((l) => l.what)).toEqual(["Security check part: Fresh", "Security check part: Secrets", "Security check part: Headers", "New workspace: Settle"]);
+    expect(log[0]).toMatchObject({ pickedUpBy: null, missed: false });
+    expect(log[1]).toMatchObject({ pickedUpBy: null, missed: true });
+    expect(log[2]).toMatchObject({ pickedUpBy: "Ada", waitMs: 30_000, missed: false });
+    expect(log[3]).toMatchObject({ pickedUpBy: "bo@example.com", waitMs: 0 });
   });
 });
