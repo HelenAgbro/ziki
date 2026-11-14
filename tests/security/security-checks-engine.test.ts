@@ -80,13 +80,13 @@ describe("who gets a part (#security-checks)", () => {
     db.agent.findMany.mockResolvedValue([]);
     expect(await assignWaitingJobs(asDb(db), now)).toBe(0);
     const where = db.agent.findMany.mock.calls[0][0].where;
-    expect(where).toMatchObject({ securityClearedAt: { not: null }, revokedAt: null, pausedAt: null });
+    expect(where).toMatchObject({ owner: { securityClearedAt: { not: null } }, revokedAt: null, pausedAt: null });
     expect(where.apiKeys.some.lastUsedAt.gte).toEqual(new Date(now.getTime() - 15 * 60 * 1000));
   });
 
   it("gives a waiting part only while it is still free", async () => {
     const db = fakeDb();
-    db.agent.findMany.mockResolvedValue([{ id: "agentA", onCallAt: now, activations: [], _count: { securityCheckItems: 0 } }]);
+    db.agent.findMany.mockResolvedValue([{ id: "agentA", owner: { onCallAt: now }, activations: [], _count: { securityCheckItems: 0 } }]);
     db.securityCheckItem.findMany.mockResolvedValue([
       { id: "j1", check: { organisationId: "client" } },
       { id: "j2", check: { organisationId: "client" } },

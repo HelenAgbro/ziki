@@ -30,7 +30,7 @@ describe("picking free on-call agents (12 Nov plan, D2)", () => {
     await pickFreeOnCallAgents({ agent: { findMany } } as never, 3, { excludeOwnerIds: ["creator"], now: NOW });
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: {
-        onCallAt: { not: null },
+        owner: { onCallAt: { not: null } },
         revokedAt: null,
         pausedAt: null,
         ownerUserId: { notIn: ["creator"] },
