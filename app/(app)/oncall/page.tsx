@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth-helpers";
 import { canSeeOnCall, formatWait, onCallCover } from "@/lib/on-call-metrics";
-import { listOnCallAgents } from "@/lib/security-checks/on-call";
+import { listOnCallPeople } from "@/lib/security-checks/on-call";
 
 export const metadata = { title: "On call" };
 
@@ -16,19 +16,19 @@ const card = "rounded-xl border border-zk-border bg-zk-surface p-4";
 export default async function OnCallPortalPage() {
   const user = await requireUser();
   if (!(await canSeeOnCall(user))) notFound();
-  const [cover, agents] = await Promise.all([onCallCover(), listOnCallAgents()]);
+  const [cover, people] = await Promise.all([onCallCover(), listOnCallPeople()]);
   const isSuperAdmin = user.role === "super_admin" || user.isRealSuperAdmin;
-  const quiet = agents.filter((a) => a.state === "Quiet");
+  const quiet = people.filter((p) => p.state === "Quiet");
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-8">
       <div className="space-y-1">
         <h1 className="text-2xl font-extrabold text-zk-text">On call</h1>
         <p className="text-sm text-zk-text2">
-          On-call agents pick up new workspaces and security-check parts first. This shows how well they cover Ziki.
+          People on call, with all their agents, pick up new workspaces and security-check parts first. This shows how well they cover Ziki.
           {isSuperAdmin ? (
             <>
-              {" "}Invite or remove them on <Link href="/superadmin/on-call" className="text-zk-accent underline">On-call agents</Link>.
+              {" "}Invite or remove them on <Link href="/superadmin/on-call" className="text-zk-accent underline">On-call people</Link>.
             </>
           ) : null}
         </p>
@@ -55,29 +55,29 @@ export default async function OnCallPortalPage() {
       <section className="space-y-3" aria-labelledby="quiet-heading">
         <h2 id="quiet-heading" className="text-base font-semibold text-zk-text">Gone quiet</h2>
         {quiet.length === 0 ? (
-          <p className="text-sm text-zk-text2">Nobody: every on-call agent has been seen in the last 15 minutes.</p>
+          <p className="text-sm text-zk-text2">Nobody: every person on call has had an agent seen in the last 15 minutes.</p>
         ) : (
           <p className="text-sm text-zk-text2">
-            Not seen for 15 minutes, so they get no new work until they&rsquo;re back: {quiet.map((a) => a.name).join(", ")}.
+            Not seen for 15 minutes, so they get no new work until they&rsquo;re back: {quiet.map((p) => p.name ?? p.email).join(", ")}.
           </p>
         )}
       </section>
 
       <section className="space-y-3" aria-labelledby="agents-heading">
-        <h2 id="agents-heading" className="text-base font-semibold text-zk-text">On-call agents</h2>
-        {agents.length === 0 ? (
-          <p className="text-sm text-zk-text2">No on-call agents yet.</p>
+        <h2 id="agents-heading" className="text-base font-semibold text-zk-text">People on call</h2>
+        {people.length === 0 ? (
+          <p className="text-sm text-zk-text2">Nobody is on call yet.</p>
         ) : (
           <ul className="divide-y divide-zk-border rounded-xl border border-zk-border bg-zk-surface">
-            {agents.map((agent) => (
-              <li key={agent.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+            {people.map((person) => (
+              <li key={person.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                 <p className="text-sm font-medium text-zk-text">
-                  {agent.name} <span className="text-zk-text2">@{agent.username}</span>
+                  {person.name} <span className="text-zk-text2">{person.agentCount} agent{person.agentCount === 1 ? "" : "s"}</span>
                 </p>
                 <p className="text-xs text-zk-text2">
-                  {agent.state}
-                  {agent.openParts > 0 ? ` · busy with ${agent.openParts} security part${agent.openParts === 1 ? "" : "s"}` : " · free"}
-                  {agent.guestWorkspaces > 0 ? ` · helping ${agent.guestWorkspaces} new workspace${agent.guestWorkspaces === 1 ? "" : "s"}` : ""}
+                  {person.state}
+                  {person.openParts > 0 ? ` · busy with ${person.openParts} security part${person.openParts === 1 ? "" : "s"}` : " · free"}
+                  {person.guestWorkspaces > 0 ? ` · helping ${person.guestWorkspaces} new workspace${person.guestWorkspaces === 1 ? "" : "s"}` : ""}
                 </p>
               </li>
             ))}

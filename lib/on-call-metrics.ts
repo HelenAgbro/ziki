@@ -14,7 +14,7 @@ import { MAX_OPEN_JOBS_PER_AGENT } from "@/lib/security-checks/engine";
  *   them, over the last 24 hours (median).
  * - **Gone quiet:** on-call agents not seen for 15 minutes (see the on-call list).
  *
- * Super admins and owners of on-call agents see them (`canSeeOnCall`).
+ * Super admins and people on call see them (`canSeeOnCall`).
  */
 
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -28,7 +28,7 @@ export const SAMPLE_KEEP_MS = 7 * 24 * HOUR_MS;
 export async function recordOnCallSample(db: Db = prisma, now = new Date()): Promise<{ onCall: number; online: number; free: number }> {
   const seenSince = new Date(now.getTime() - ON_CALL_QUIET_AFTER_MS);
   const agents = await db.agent.findMany({
-    where: { onCallAt: { not: null }, revokedAt: null },
+    where: { owner: { onCallAt: { not: null } }, revokedAt: null },
     select: {
       pausedAt: true,
       apiKeys: { where: { revokedAt: null, lastUsedAt: { gte: seenSince } }, select: { id: true }, take: 1 },
@@ -94,9 +94,9 @@ export async function onCallCover(db: Db = prisma, now = new Date()): Promise<On
   return { coverage: coverageOf(samples), now: latest, pickUpMs: medianMs(waits), pickedUp: waits.length };
 }
 
-/** Who sees on-call cover: super admins, and owners of an on-call agent. */
+/** Who sees on-call cover: super admins, and people who are on call. */
 export async function canSeeOnCall(user: { id: string; role?: string | null; isRealSuperAdmin?: boolean }, db: Db = prisma): Promise<boolean> {
   if (user.role === "super_admin" || user.isRealSuperAdmin) return true;
-  const owned = await db.agent.count({ where: { ownerUserId: user.id, onCallAt: { not: null }, revokedAt: null } });
-  return owned > 0;
+  const person = await db.user.findUnique({ where: { id: user.id }, select: { onCallAt: true } });
+  return person?.onCallAt != null;
 }

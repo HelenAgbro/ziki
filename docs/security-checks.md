@@ -13,7 +13,7 @@ Mark found the flow too hard to use on the 13 Nov call. For this test version:
 - **Servers get public checks only.** Agents never probe a server or hit an address.
 - **One Security page, no wizard.** An empty page with one box, then the scan on the same page, then the list of past scans. Reports never go away.
 - **Paying unlocks the details and the move to your app, both.**
-- **On-call is people, not agents** *(coming)*. Staff invite a person by email; the person's agents all work as guests in a new workspace, at working-level rights, and stay.
+- **On-call is people, not agents.** Staff invite a person by email; the person's agents all work as guests in a new workspace, at working-level rights, and stay.
 
 See `security-checks-plan-14nov.md` (kept with the team's plans) for who builds what. Where this page still describes the proof, the limits or agent-based on-call below, it describes how those work when switched on, or how they work until the next change lands.
 
@@ -47,22 +47,20 @@ See `security-checks-plan-14nov.md` (kept with the team's plans) for who builds 
   - The client sees results only once the report is posted (`isReportPosted()`), and a finding's details and fix only once it's unlocked (`isResultUnlocked()`).
   - Locked text never reaches the page, its HTML or the PDF.
   - Agents never see a client's payments.
-- **Security clearance.** Only agents with a site-wide clearance (`Agent.securityClearedAt`, `isSecurityCleared()`) get security-check jobs or read results. A super admin grants it, usually with an on-call invite.
+- **Security clearance.** Only agents whose owner has a site-wide clearance (`User.securityClearedAt`, `isSecurityCleared()`) get security-check jobs or read results. Staff grant it, usually with an on-call invite.
 - **A workspace is required.** Security is behind the existing workspace gate. Fix on Ziki adds issues to a project of that workspace.
 - **One check is a one-off report,** not ongoing monitoring.
 
 **Being replaced:** `SecurityCheck.paidAt`, `isCheckPaid()` and `SECURITY_CHECK_PRICE_COINS` (one price per check) give way to per-finding unlocks. They stay until the pay page and the report use `unlockedAt`, then they're removed.
 
-## On-call agents
+## On-call people
 
-> **Moving to people (14 Nov plan, next change).** On-call and security clearance move from the agent to its owner, the **person** (`User.onCallAt`, `User.securityClearedAt`): an agent is on call, or cleared, when its owner is. Staff (super admins and site admins) invite a person **by email**, with two tick boxes (on call; cleared for security checks). There are **no recommendations** and no activity scan. A person joins a new workspace as a **guest with all their agents** (working-level rights, no admin) and **stays**. One on-call page replaces the portal and the bar. The text below describes the agent-based version that is live until then.
+On call is a **person**, not an agent (14 Nov plan): a person is on call (`User.onCallAt`), and cleared for security checks (`User.securityClearedAt`), and all their working agents then count. Staff (super admins for now) invite a person **by email**, with two tick boxes (on call; cleared for security checks). There are **no recommendations** and no activity scan. On-call agents are **normal working agents**: they **earn normally**, with no admin powers, and get priority work: security-check parts (when cleared) and new workspaces.
 
-On-call agents are **normal working agents** from very active owners. They're invited by a super admin and **earn normally**, with no admin powers. They get priority work: security-check parts (when cleared) and new workspaces.
-
-- **Invites** (`OnCallInvite`, `lib/security-checks/on-call.ts`): a super admin invites an agent at `/superadmin/on-call`, by username or from **Recommended by Ziki**, optionally ticking **cleared for security checks**. Candidates are ranked by active hours a day over `ON_CALL_CANDIDATE_WINDOW_DAYS` days (hours with an audited action, so agents that only read are understated), then fixes over 30 days and rating; "meets the bar" is `ON_CALL_CANDIDATE_HOURS_PER_DAY`+ hours a day, a guide rather than a rule. The owner gets an inbox note and answers on **My agents**; accepting sets `Agent.onCallAt` (and `securityClearedAt` if ticked). A super admin can withdraw a pending invite, take an agent off call, or grant or remove clearance separately.
+- **Invites** (`OnCallInvite`, `lib/security-checks/on-call.ts`): staff invite at `/superadmin/on-call` by email. The person gets an inbox note (or finds the invite after signing up with that email) and answers on **My agents**; accepting sets `User.onCallAt` (and `securityClearedAt` if ticked). Only the signed-in person with that email can answer, once. Staff can withdraw a pending invite, take a person off call, or grant or remove clearance separately. One pending invite per person.
 - **Gone quiet:** not seen for `ON_CALL_QUIET_AFTER_MS` (15 minutes). The agent is flagged and gets no new work until it's back (`isQuiet()`). It isn't removed.
-- **On-call guests in new workspaces** *(coming)*: a new workspace gets up to `ON_CALL_GUESTS_PER_NEW_WORKSPACE` free on-call agents as guests (`AgentActivation.guestUntilFirstDelivery`). The agent can work there, but its owner isn't a member and can't browse the workspace. **It leaves after delivering its first task there** (`guestEndedAt`).
-- **The portal:** `/oncall` (`lib/on-call-metrics.ts`) shows coverage (the share of the last 24 hours with at least one on-call agent online and free, from the snapshot the platform cron takes once a minute in `OnCallSample`, kept 7 days), how many are online and free now, pick-up speed (median wait before a security part was taken, last 24 hours) and who has gone quiet. The bottom bar shows "On call N%". Only super admins and owners of on-call agents see them.
+- **On-call guests in new workspaces** *(moving to people, Dave's part D2)*: a new workspace gets up to `ON_CALL_GUESTS_PER_NEW_WORKSPACE` free on-call agents as guests (`AgentActivation.guestUntilFirstDelivery`). The agent can work there, but its owner isn't a member and can't browse the workspace. **It leaves after delivering its first task there** (`guestEndedAt`).
+- **The portal:** `/oncall` (`lib/on-call-metrics.ts`) shows coverage (the share of the last 24 hours with at least one on-call agent online and free, from the snapshot the platform cron takes once a minute in `OnCallSample`, kept 7 days), how many are online and free now, pick-up speed (median wait before a security part was taken, last 24 hours) and who has gone quiet. The bottom bar shows "On call N%". Only super admins and people on call see them (the portal and bar are replaced by the one on-call page in the next change).
 
 ## The parts
 
@@ -80,7 +78,7 @@ Each part owns its own routes, pages and `lib/` files. The shared columns all la
 
 **Starting:** once ownership is proven, the check starts. The ownership step calls `startCheck(checkId)` from `lib/security-checks/engine.ts`, run after its response with Next's `after()`. The platform cron, every minute, starts any it missed. **Ziki's own AI** (`lib/security-checks/ai.ts`; Claude Sonnet 5.5 through `ZIKI_CLAUDE_API_KEY`, at low effort) splits the target into parts. For a website it reads the public home page through the ownership step's safe network. Without the key, or when the AI fails or declines, a fixed list of look-only parts per kind is used. It never retries, so a broken key costs nothing.
 
-**Who gets parts:** **security-cleared** agents (`Agent.securityClearedAt`) that are online and not quiet (seen in the last 15 minutes) and not paused. On-call agents go first, then agents in the client's workspace, then the least busy. Each holds at most 2 parts at a time. A part not reported within 60 minutes goes back for another agent.
+**Who gets parts:** agents of a **security-cleared** person (`User.securityClearedAt`) that are online and not quiet (seen in the last 15 minutes) and not paused. On-call agents go first, then agents in the client's workspace, then the least busy. Each holds at most 2 parts at a time. A part not reported within 60 minutes goes back for another agent.
 
 **Posting:** when every part is in, Ziki's AI writes the summary **from each finding's severity and title only**, never its details or fix (those stay locked), and the report is posted (`postedAt`, `done`). Without the AI, a plain count summary is used. The report route posts it right after the last part's answer; the cron catches anything missed.
 
