@@ -5,7 +5,7 @@ import {
   removeOnCallAction,
   setSecurityClearanceAction,
 } from "@/app/actions/on-call";
-import { listOnCallPeople, pendingInvites } from "@/lib/security-checks/on-call";
+import { listOnCallPeople, onCallLog, pendingInvites } from "@/lib/security-checks/on-call";
 
 export const metadata = { title: "On-call people" };
 
@@ -15,6 +15,14 @@ const ERRORS: Record<string, string> = {
   already_invited: "That person already has a pending invite.",
   not_pending: "That invite isn't pending any more.",
 };
+
+/** "30s", "4m", "1h 20m": a wait in plain words. */
+function waitWords(ms: number): string {
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.round(s / 60);
+  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`;
+}
 
 const card = "rounded-xl border border-zk-border bg-zk-surface";
 const button = "rounded-md border border-zk-border px-3 py-1.5 text-sm text-zk-text2 hover:bg-zk-chip";
@@ -28,7 +36,7 @@ const primary = "rounded-md bg-zk-accent px-3 py-1.5 text-sm font-medium text-wh
 export default async function OnCallAgentsPage({ searchParams }: { searchParams?: Promise<{ error?: string }> }) {
   await requireSuperAdmin();
   const params = searchParams ? await searchParams : {};
-  const [invites, people] = await Promise.all([pendingInvites(), listOnCallPeople()]);
+  const [invites, people, log] = await Promise.all([pendingInvites(), listOnCallPeople(), onCallLog()]);
   const error = params.error ? (ERRORS[params.error] ?? "Something went wrong.") : null;
 
   return (
@@ -110,6 +118,35 @@ export default async function OnCallAgentsPage({ searchParams }: { searchParams?
                     <button type="submit" className={button}>Take off call</button>
                   </form>
                 </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="space-y-3" aria-labelledby="log-heading">
+        <h2 id="log-heading" className="text-base font-semibold text-zk-text">Call log</h2>
+        <p className="text-sm text-zk-text2">
+          Security-check parts and new-workspace requests from the last 48 hours: who picked each up, how fast, and any nobody has
+          picked up in 15 minutes.
+        </p>
+        {log.length === 0 ? (
+          <p className="text-sm text-zk-text2">Nothing needed on-call people in the last 48 hours.</p>
+        ) : (
+          <ul className={`divide-y divide-zk-border ${card}`}>
+            {log.map((line, i) => (
+              <li key={`${line.at.toISOString()}-${i}`} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <p className="min-w-0 text-sm text-zk-text">
+                  {line.what}
+                  <span className="block text-xs text-zk-text2">{line.at.toLocaleString("en-GB", { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" })} UTC</span>
+                </p>
+                <p className={`text-xs ${line.missed ? "font-medium text-zk-text" : "text-zk-text2"}`}>
+                  {line.missed
+                    ? "Missed: nobody picked it up"
+                    : line.pickedUpBy === null
+                      ? "Waiting for someone"
+                      : `${line.pickedUpBy} · ${line.waitMs === 0 ? "at once" : waitWords(line.waitMs ?? 0)}`}
+                </p>
               </li>
             ))}
           </ul>
