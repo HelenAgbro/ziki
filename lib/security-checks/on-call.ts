@@ -152,7 +152,7 @@ export async function listOnCallPeople(now = new Date(), db: Db = prisma) {
         select: {
           pausedAt: true,
           apiKeys: { where: { revokedAt: null }, select: { lastUsedAt: true } },
-          activations: { where: { guestUntilFirstDelivery: true, guestEndedAt: null, deactivatedAt: null }, select: { id: true } },
+          activations: { where: { guest: true, guestEndedAt: null, deactivatedAt: null }, select: { id: true } },
           _count: { select: { securityCheckItems: { where: { status: "checking" } } } },
         },
       },
@@ -178,38 +178,6 @@ export async function listOnCallPeople(now = new Date(), db: Db = prisma) {
       guestWorkspaces: person.agents.reduce((sum, agent) => sum + agent.activations.length, 0),
     };
   });
-}
-
-// ---------------------------------------------------------------------------
-// Picking people for a new workspace (Dave's part D2 calls this)
-
-/**
- * Up to `n` free on-call people, at random: on call, and with at least one
- * working agent (not revoked or paused) seen in the last ON_CALL_QUIET_AFTER_MS.
- * Each comes with all their working agents, who join a new workspace together.
- * `excludeUserIds` keeps, for example, the workspace's own creator out.
- */
-export async function pickFreeOnCallPeople(
-  db: Db,
-  n: number,
-  { excludeUserIds = [], now = new Date(), random = Math.random }: { excludeUserIds?: string[]; now?: Date; random?: () => number } = {},
-): Promise<{ userId: string; agentIds: string[] }[]> {
-  if (n <= 0) return [];
-  const since = new Date(now.getTime() - ON_CALL_QUIET_AFTER_MS);
-  const people = await db.user.findMany({
-    where: {
-      onCallAt: { not: null },
-      id: { notIn: excludeUserIds },
-      agents: { some: { revokedAt: null, pausedAt: null, apiKeys: { some: { revokedAt: null, lastUsedAt: { gte: since } } } } },
-    },
-    select: { id: true, agents: { where: { revokedAt: null, pausedAt: null }, select: { id: true } } },
-  });
-  // Shuffle (Fisher-Yates), then keep the first n.
-  for (let i = people.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    [people[i], people[j]] = [people[j]!, people[i]!];
-  }
-  return people.slice(0, n).map((person) => ({ userId: person.id, agentIds: person.agents.map((agent) => agent.id) }));
 }
 
 // ---------------------------------------------------------------------------
@@ -276,7 +244,7 @@ export async function onCallLog(now = new Date(), db: Db = prisma): Promise<Call
       select: { createdAt: true, assignedAt: true, title: true, agent: owner },
     }),
     db.agentActivation.findMany({
-      where: { guestUntilFirstDelivery: true, createdAt: { gte: since } },
+      where: { guest: true, createdAt: { gte: since } },
       orderBy: { createdAt: "desc" },
       take: CALL_LOG_LINES,
       select: { createdAt: true, organisation: { select: { name: true } }, agent: owner },

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildCallLog, cancelOnCallInvite, inviteToOnCall, pickFreeOnCallPeople, respondToOnCallInvite } from "@/lib/security-checks/on-call";
+import { buildCallLog, cancelOnCallInvite, inviteToOnCall, respondToOnCallInvite } from "@/lib/security-checks/on-call";
 
 /** A fake Prisma client: every model method is a mock, and $transaction runs the callback on the same fake. */
 function fakeDb() {
@@ -102,35 +102,6 @@ describe("the invited person answering (#on-call)", () => {
     db.onCallInvite.updateMany.mockResolvedValue({ count: 0 });
     await expect(respondToOnCallInvite(asDb(db), { inviteId: "inv1", userId: "u1", accept: true }, now)).rejects.toMatchObject({ code: "not_pending" });
     expect(db.user.update).not.toHaveBeenCalled();
-  });
-});
-
-describe("picking free on-call people for a new workspace (#on-call)", () => {
-  const since = new Date(now.getTime() - 15 * 60 * 1000);
-
-  it("asks only for people on call with a live, unpaused, recently seen agent, and leaves the creator out", async () => {
-    const findMany = vi.fn(async (_args: unknown) => []);
-    await pickFreeOnCallPeople({ user: { findMany } } as never, 3, { excludeUserIds: ["creator"], now });
-    expect(findMany.mock.calls[0]![0]).toMatchObject({
-      where: {
-        onCallAt: { not: null },
-        id: { notIn: ["creator"] },
-        agents: { some: { revokedAt: null, pausedAt: null, apiKeys: { some: { revokedAt: null, lastUsedAt: { gte: since } } } } },
-      },
-    });
-  });
-
-  it("returns at most n people, each with all their working agents", async () => {
-    const people = [
-      { id: "ada", agents: [{ id: "a1" }, { id: "a2" }] },
-      { id: "bo", agents: [{ id: "b1" }] },
-      { id: "cy", agents: [{ id: "c1" }] },
-    ];
-    const picked = await pickFreeOnCallPeople({ user: { findMany: vi.fn(async () => people) } } as never, 2, { now, random: () => 0 });
-    expect(picked).toHaveLength(2);
-    const ada = picked.find((p) => p.userId === "ada");
-    if (ada) expect(ada.agentIds).toEqual(["a1", "a2"]);
-    expect(await pickFreeOnCallPeople({} as never, 0)).toEqual([]);
   });
 });
 
