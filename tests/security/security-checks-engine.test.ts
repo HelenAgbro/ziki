@@ -109,7 +109,9 @@ describe("starting a check: Ziki's AI splits it", () => {
     const parts = Array.from({ length: 8 }, (_, i) => ({ title: `Part ${i + 1}`, instructions: "Look at it." }));
     const { ai } = fakeAi({ parts });
     expect(await startCheck(asDb(db), "check1", now, { ai, readPage: null })).toBe(true);
-    expect(db.securityCheck.updateMany.mock.calls[0][0].where).toMatchObject({ id: "check1", target: { verifiedAt: { not: null } } });
+    // Proof is off, so the start asks nothing of the target (with it on, it also asks for verifiedAt).
+    expect(db.securityCheck.updateMany.mock.calls[0][0].where).toMatchObject({ id: "check1" });
+    expect(db.securityCheck.updateMany.mock.calls[0][0].where).not.toHaveProperty("target");
     expect(db.securityCheckItem.createMany.mock.calls[0][0].data).toHaveLength(8);
     expect(db.securityCheckItem.createMany.mock.calls[0][0].data[0]).toMatchObject({ checkId: "check1", kind: "check", title: "Part 1" });
   });
@@ -150,10 +152,19 @@ describe("reporting a part", () => {
     expect(db.securityCheckResult.createMany).not.toHaveBeenCalled();
   });
 
-  it("refuses work on a check whose target lost its ownership proof", async () => {
+  it("refuses work on a check whose target lost its ownership proof, when proof is required", async () => {
+    vi.stubEnv("SECURITY_OWNERSHIP_PROOF_REQUIRED", "true");
     const db = fakeDb();
     db.securityCheckItem.findUnique.mockResolvedValue(heldItem({ check: { status: "checking", target: { verifiedAt: null } } }));
     await expect(submitReport(asDb(db), "agentA", "item1", [], now)).rejects.toBeInstanceOf(SecurityJobError);
+    vi.unstubAllEnvs();
+  });
+
+  it("takes the work of a target with no proof while proof is off", async () => {
+    const db = fakeDb();
+    db.securityCheckItem.findUnique.mockResolvedValue(heldItem({ check: { status: "checking", target: { verifiedAt: null } } }));
+    db.securityCheckItem.updateMany.mockResolvedValue({ count: 1 });
+    expect(await submitReport(asDb(db), "agentA", "item1", found, now)).toEqual({ checkId: "check1", results: 1 });
   });
 
   it("serves no old split or collate jobs", async () => {

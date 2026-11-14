@@ -1,7 +1,7 @@
 import type { Prisma, PrismaClient, SecuritySeverity } from "@prisma/client";
 import { award } from "@/lib/points/award";
 import { logger } from "@/lib/logger";
-import { ON_CALL_QUIET_AFTER_MS, SEVERITY_PRICE, agentsMayWork } from "@/lib/security-checks";
+import { ON_CALL_QUIET_AFTER_MS, SEVERITY_PRICE, agentsMayWork, provenTargetWhere } from "@/lib/security-checks";
 import { planParts, writeSummary, type PageReader, type SecurityAi } from "./ai";
 import { pickAgentFor, type CandidateAgent } from "./assign";
 import { realNetwork } from "./ownership";
@@ -101,7 +101,7 @@ export async function startCheck(db: EngineDb, checkId: string, now = new Date()
   const { count } = await db.securityCheck.updateMany({
     where: {
       id: checkId,
-      target: { verifiedAt: { not: null } },
+      ...provenTargetWhere(),
       OR: [
         { status: "queued" },
         { status: "splitting", startedAt: { lt: stuckBefore }, items: { none: { kind: "check" } } },
@@ -146,7 +146,7 @@ export async function startWaitingChecks(db: EngineDb, now = new Date(), deps: E
   const stuckBefore = new Date(now.getTime() - STUCK_AFTER_MINUTES * 60_000);
   const waiting = await db.securityCheck.findMany({
     where: {
-      target: { verifiedAt: { not: null } },
+      ...provenTargetWhere(),
       OR: [{ status: "queued" }, { status: "splitting", startedAt: { lt: stuckBefore }, items: { none: { kind: "check" } } }],
     },
     orderBy: { createdAt: "asc" },
@@ -221,7 +221,7 @@ export async function assignWaitingJobs(db: Db, now = new Date(), onlyAgentId?: 
   const agents = await availableAgents(db, now, onlyAgentId);
   if (agents.length === 0) return 0;
   const waiting = await db.securityCheckItem.findMany({
-    where: { kind: "check", status: "waiting", agentId: null, check: { status: "checking", target: { verifiedAt: { not: null } } } },
+    where: { kind: "check", status: "waiting", agentId: null, check: { status: "checking", ...provenTargetWhere() } },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     select: { id: true, check: { select: { organisationId: true } } },
     take: agents.length * MAX_OPEN_JOBS_PER_AGENT,
