@@ -1,5 +1,6 @@
 import type {
   OnCallInviteStatus,
+  Prisma,
   SecurityCheckItemKind,
   SecurityCheckItemStatus,
   SecurityCheckStatus,
@@ -77,9 +78,34 @@ export function isSecurityCheckItemStatus(value: unknown): value is SecurityChec
   return typeof value === "string" && (SECURITY_CHECK_ITEM_STATUSES as readonly string[]).includes(value);
 }
 
-/** Whether agents may touch this check's target: never before ownership is proven. */
-export function agentsMayWork(check: { status: SecurityCheckStatus }, target: { verifiedAt: Date | null }): boolean {
-  return target.verifiedAt !== null && AGENT_WORKABLE_CHECK_STATUSES.has(check.status);
+/**
+ * Ownership proof (14 Nov plan): OFF for now, so a person can scan anything they
+ * type and we can test the whole flow and iterate on Mark's feedback. It is
+ * switched off, not removed: set `SECURITY_OWNERSHIP_PROOF_REQUIRED=true` to
+ * bring it back (the proof pages and checks are all still there). KYC is a
+ * separate, later step.
+ */
+export function ownershipProofRequired(): boolean {
+  return process.env.SECURITY_OWNERSHIP_PROOF_REQUIRED === "true";
+}
+
+/** Whether a target counts as proven: always, while proof is off; otherwise once `verifiedAt` is set. */
+export function isTargetProven(target: { verifiedAt: Date | null }, required = ownershipProofRequired()): boolean {
+  return !required || target.verifiedAt !== null;
+}
+
+/**
+ * The query condition for "a proven target", to spread into a check's `where`:
+ * nothing while proof is off, the `verifiedAt` test when it is on. It is the
+ * query-side twin of `isTargetProven`.
+ */
+export function provenTargetWhere(required = ownershipProofRequired()): { target?: { verifiedAt: { not: null } } } {
+  return required ? { target: { verifiedAt: { not: null } } } : {};
+}
+
+/** Whether agents may touch this check's target: never before ownership is proven (when proof is required). */
+export function agentsMayWork(check: { status: SecurityCheckStatus }, target: { verifiedAt: Date | null }, required = ownershipProofRequired()): boolean {
+  return isTargetProven(target, required) && AGENT_WORKABLE_CHECK_STATUSES.has(check.status);
 }
 
 /** Whether the client sees the full report (and agents get paid): only once paid. */
@@ -135,10 +161,22 @@ export function freeScanMonthStart(now = new Date()): Date {
 export type FreeScanAnswer = { allowed: true } | { allowed: false; reason: "target_used" | "workspace_limit" };
 
 /**
+ * Scan limits (14 Nov plan): OFF for now, so nothing stops a test scan. They are
+ * switched off, not removed: set `SECURITY_SCAN_LIMITS_ENABLED=true` to bring
+ * back the free-scan limits below. The chat's hourly message limit is separate
+ * and stays.
+ */
+export function scanLimitsEnabled(): boolean {
+  return process.env.SECURITY_SCAN_LIMITS_ENABLED === "true";
+}
+
+/**
  * Whether a new check may be free, from the free scans the target has had and
  * the free scans the workspace started this month (since freeScanMonthStart).
+ * Always allowed while the limits are off.
  */
-export function freeScanAllowed(counts: { targetFreeScans: number; workspaceFreeScansThisMonth: number }): FreeScanAnswer {
+export function freeScanAllowed(counts: { targetFreeScans: number; workspaceFreeScansThisMonth: number }, enabled = scanLimitsEnabled()): FreeScanAnswer {
+  if (!enabled) return { allowed: true };
   if (counts.targetFreeScans >= FREE_SCANS_PER_TARGET) return { allowed: false, reason: "target_used" };
   if (counts.workspaceFreeScansThisMonth >= FREE_SCANS_PER_WORKSPACE_PER_MONTH) return { allowed: false, reason: "workspace_limit" };
   return { allowed: true };
