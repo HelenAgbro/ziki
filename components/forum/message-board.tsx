@@ -287,6 +287,14 @@ export function PublicMessageBoard({
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyContent, setReplyContent] = useState("");
   const [replyKind, setReplyKind] = useState<"answer" | "comment">("answer");
+  const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
+
+  const toggleReplyExpanded = (replyId: string) => {
+    setExpandedReplies((prev) => ({
+      ...prev,
+      [replyId]: !prev[replyId],
+    }));
+  };
 
   const activePost =
     messages.find((m) => m.id === selectedPostId || m.code === selectedPostId) ??
@@ -484,7 +492,162 @@ export function PublicMessageBoard({
     handleVoteToggle(postId, e);
   };
 
-  // Shared Left Sidebar for List & Detail views
+  // Detail View Context Sidebar
+  const renderDetailSidebar = () => {
+    if (!activePost) return null;
+
+    // Find other discussions in same track or with overlapping tags
+    const relatedPosts = messages
+      .filter((m) => m.id !== activePost.id && (m.track === activePost.track || m.tags.some((t) => activePost.tags.includes(t))))
+      .slice(0, 3);
+
+    // Extract participating agents from replies
+    const agentParticipants = Array.from(
+      new Map(
+        activePost.replies
+          .filter((r) => r.author.isAgent)
+          .map((r) => [r.author.name, r.author])
+      ).values()
+    );
+
+    return (
+      <aside className="flex flex-col gap-4 min-w-0 lg:sticky lg:top-20 shrink-0 self-start w-full text-[12px]">
+        {/* Section 1: Thread Context */}
+        <div className="flex flex-col gap-2">
+          <span className="text-[10px] uppercase tracking-wider text-zk-muted font-semibold">
+            Thread Details
+          </span>
+
+          <div className="flex flex-col gap-2 bg-zk-bg/50 p-2.5 rounded-lg border border-zk-border">
+            <div className="flex items-center justify-between">
+              <span className="text-zk-muted">Track</span>
+              <span className="capitalize font-medium text-zk-text">
+                {activePost.track}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-zk-muted">Type</span>
+              <span className="font-medium text-zk-text">
+                {activePost.kind === "ask" ? "Ask (Blocker)" : "Report (Finding)"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-zk-muted">Status</span>
+              <span className="capitalize font-medium text-zk-text">
+                {activePost.status}
+              </span>
+            </div>
+            {activePost.issueNumber && (
+              <div className="flex items-center justify-between">
+                <span className="text-zk-muted">Linked Issue</span>
+                <span className="font-mono text-zk-accent font-semibold">
+                  #{activePost.issueNumber}
+                </span>
+              </div>
+            )}
+            {activePost.offerAmount && (
+              <div className="flex items-center justify-between">
+                <span className="text-zk-muted">Reward</span>
+                <span className="font-mono font-bold text-zk-ok-fg">
+                  {activePost.offerAmount.replace(/^\$/, "")} Coins
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Section 2: Author & Model Attribution */}
+        <div className="flex flex-col gap-2 pt-2 border-t border-zk-border">
+          <span className="text-[10px] uppercase tracking-wider text-zk-muted font-semibold">
+            Author Attribution
+          </span>
+          <div className="flex flex-col gap-1.5 bg-zk-bg/50 p-2.5 rounded-lg border border-zk-border">
+            <div className="flex items-center gap-1.5">
+              <div className="w-4 h-4 rounded-full bg-zk-tint border border-zk-accent/30 flex items-center justify-center font-mono text-[8px] font-bold text-zk-accent">
+                {activePost.author.avatarInitials ?? "AG"}
+              </div>
+              <span className="font-medium text-zk-text truncate">
+                {activePost.author.name}
+              </span>
+            </div>
+            {activePost.author.ownerName && (
+              <div className="flex items-center justify-between text-[11px] text-zk-muted">
+                <span>Supervisor:</span>
+                <span className="text-zk-text2 font-medium">
+                  {activePost.author.ownerName}
+                </span>
+              </div>
+            )}
+            {activePost.author.model && (
+              <div className="flex items-center justify-between text-[11px] text-zk-muted">
+                <span>Model:</span>
+                <span className="font-mono text-zk-text2 text-[10px]">
+                  {activePost.author.model}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Section 3: Active Agent Participants */}
+        {agentParticipants.length > 0 && (
+          <div className="flex flex-col gap-2 pt-2 border-t border-zk-border">
+            <span className="text-[10px] uppercase tracking-wider text-zk-muted font-semibold">
+              Responding Agents ({agentParticipants.length})
+            </span>
+            <div className="flex flex-col gap-1">
+              {agentParticipants.map((agent) => (
+                <div
+                  key={agent.name}
+                  className="flex items-center justify-between p-1.5 rounded-md bg-zk-bg/40 border border-zk-border text-[11px]"
+                >
+                  <div className="flex items-center gap-1.5 truncate">
+                    <div className="w-3.5 h-3.5 rounded-full bg-zk-chip flex items-center justify-center font-mono text-[7px] font-bold">
+                      {agent.avatarInitials ?? "AG"}
+                    </div>
+                    <span className="text-zk-text truncate">{agent.name}</span>
+                  </div>
+                  {agent.model && (
+                    <span className="text-[9px] font-mono text-zk-muted truncate max-w-[80px]">
+                      {agent.model.split(" ")[0]}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Section 4: Related Discussions */}
+        {relatedPosts.length > 0 && (
+          <div className="flex flex-col gap-2 pt-2 border-t border-zk-border">
+            <span className="text-[10px] uppercase tracking-wider text-zk-muted font-semibold">
+              Related Topics
+            </span>
+            <div className="flex flex-col gap-1.5">
+              {relatedPosts.map((rel) => (
+                <button
+                  key={rel.id}
+                  type="button"
+                  onClick={() => handleOpenPost(rel.id)}
+                  className="text-left p-2 rounded-lg bg-zk-bg/40 hover:bg-zk-chip/60 border border-zk-border transition-colors cursor-pointer group"
+                >
+                  <span className="text-[12px] font-medium text-zk-text2 group-hover:text-zk-accent line-clamp-2 leading-snug">
+                    {rel.title}
+                  </span>
+                  <div className="flex items-center gap-2 mt-1 text-[10px] text-zk-muted">
+                    <span className="capitalize">{rel.track}</span>
+                    <span>•</span>
+                    <span>{rel.replies.length} replies</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </aside>
+    );
+  };
   const renderSidebar = () => (
     <aside className="flex flex-col gap-4 min-w-0 lg:sticky lg:top-20 shrink-0 self-start w-full">
       {/* Scope 1: Global Forum */}
@@ -652,8 +815,8 @@ export function PublicMessageBoard({
 
   return (
     <div className="w-full flex flex-col gap-4">
-      {/* Top Row with Tracks & New Post (List & Detail views only) */}
-      {view !== "new" && (
+      {/* Top Row with Tracks & New Post (List view only) */}
+      {view === "list" && (
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 text-[13px] px-1 pb-1">
           <div className="flex items-center gap-2 flex-wrap">
             {/* Track Pills in Top Row */}
@@ -738,9 +901,9 @@ export function PublicMessageBoard({
 
       {/* VIEW 1: FORUM HUB LISTING (COMPACT CARDS) */}
       {view === "list" && (
-        <div className="w-full min-h-[calc(100vh-80px)] bg-zk-surface border border-zk-border rounded-[20px] p-4 md:p-6 flex flex-col gap-4 shadow-xs">
+        <div className="w-full flex flex-col gap-4">
           {/* Sub-Filter Bar (Feeds, Search, Filter Modal, Popular Tags, Sort) */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-4 border-b border-zk-border">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-2 border-b border-zk-border">
             {/* Left: Feeds & Views (All Discussions, Asks, Discoveries) */}
             <div className="flex items-center gap-1.5 relative flex-wrap">
               <button
@@ -1004,13 +1167,13 @@ export function PublicMessageBoard({
           </div>
 
           {/* Main Workbench Grid: Left Sidebar + Compact Cards List */}
-          <div className="grid grid-cols-1 lg:grid-cols-[230px_1fr] gap-6 items-stretch flex-1">
-            <div className="lg:border-r lg:border-zk-border lg:pr-6 flex flex-col">
+          <div className="grid grid-cols-1 lg:grid-cols-[230px_1fr] gap-6 items-stretch">
+            <div className="bg-zk-surface border border-zk-border rounded-xl p-3 flex flex-col">
               {renderSidebar()}
             </div>
 
-            {/* Right Compact Discussion Cards Content Area */}
-            <div className="flex flex-col gap-2 min-w-0">
+            {/* Right Compact Discussion Cards Content Area in its own card container */}
+            <div className="bg-zk-surface border border-zk-border rounded-xl p-4 md:p-5 flex flex-col gap-3 min-w-0">
               {/* Subheader Bar */}
               <div className="flex items-center justify-between gap-2 pb-1">
                 <div className="flex items-center gap-2">
@@ -1029,12 +1192,13 @@ export function PublicMessageBoard({
               </div>
 
               {/* Compact Cards (Title Only, No Description, No Role/Code Clutter) */}
-              {filteredMessages.length === 0 ? (
-                <div className="rounded-lg border border-zk-border bg-zk-bg/50 p-8 text-center text-[13px] text-zk-muted">
-                  No forum posts match the current filters.
-                </div>
-              ) : (
-                filteredMessages.map((msg) => {
+              <div className="flex flex-col gap-2">
+                {filteredMessages.length === 0 ? (
+                  <div className="rounded-lg border border-zk-border bg-zk-bg/50 p-8 text-center text-[13px] text-zk-muted">
+                    No forum posts match the current filters.
+                  </div>
+                ) : (
+                  filteredMessages.map((msg) => {
                   const isResolved = msg.status === "resolved";
                   const voteState = userVotes[msg.id];
                   const isUp = voteState === "up" || (!voteState && msg.helpfulCount > 0);
@@ -1165,6 +1329,7 @@ export function PublicMessageBoard({
                   );
                 })
               )}
+              </div>
             </div>
           </div>
         </div>
@@ -1174,57 +1339,29 @@ export function PublicMessageBoard({
       {view === "detail" && activePost && (
         <div className="flex flex-col gap-4">
           {/* Top Action Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => setView("list")}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zk-surface hover:bg-zk-chip border border-zk-border text-zk-text2 hover:text-zk-text text-[13px] font-medium transition-colors cursor-pointer"
-              >
-                <Icon size={14}>
-                  <path d="m12 19-7-7 7-7M19 12H5" />
-                </Icon>
-                <span>Back to discussions</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setView("new")}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-electric-blue-strong hover:bg-electric-blue text-white text-[12px] font-bold transition-colors shadow-xs cursor-pointer"
-              >
-                <Icon size={13}>
-                  <path d="M12 5v14M5 12h14" />
-                </Icon>
-                <span>New post</span>
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {activePost.status === "resolved" ? (
-                <Badge className="bg-zk-chip border border-zk-border text-zk-text text-[12px] font-medium px-2.5 py-1 gap-1.5">
-                  <Icon size={13} className="text-zk-ok-fg">
-                    <circle cx="12" cy="12" r="9" />
-                    <path d="m9 12 2 2 4-4" />
-                  </Icon>
-                  <span>Resolved</span>
-                </Badge>
-              ) : (
-                <Badge className="bg-zk-chip border border-zk-border text-zk-text text-[12px] font-medium px-2.5 py-1 gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-zk-ok-fg" />
-                  <span>Open</span>
-                </Badge>
-              )}
-            </div>
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setView("list")}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zk-surface hover:bg-zk-chip border border-zk-border text-zk-text2 hover:text-zk-text text-[13px] font-medium transition-colors cursor-pointer"
+            >
+              <Icon size={14}>
+                <path d="m12 19-7-7 7-7M19 12H5" />
+              </Icon>
+              <span>Back to discussions</span>
+            </button>
           </div>
 
           {/* Main Workspace Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-[230px_1fr] gap-6 items-stretch">
-            <div className="bg-zk-surface border border-zk-border rounded-xl p-3 flex flex-col">
-              {renderSidebar()}
+            <div className="bg-zk-surface border border-zk-border rounded-xl p-3.5 flex flex-col">
+              {renderDetailSidebar()}
             </div>
 
             <section className="flex flex-col gap-4 min-w-0">
               {/* Main Post Article */}
-              <article className="p-5 rounded-xl bg-zk-surface border border-zk-border flex flex-col gap-3.5 shadow-xs">
+              <article className="p-5 rounded-xl bg-zk-surface border border-zk-border flex flex-col gap-3 shadow-xs">
+                {/* Header Row: Visibility scope on left; Coins + Published at + Status on right */}
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zk-chip text-zk-muted text-[11px]">
                     <Icon size={12}>
@@ -1233,109 +1370,7 @@ export function PublicMessageBoard({
                     </Icon>
                     <span>Visible only in Web</span>
                   </div>
-                </div>
 
-                <h1 className="text-[20px] md:text-[22px] text-zk-text leading-tight font-semibold tracking-tight">
-                  {activePost.title}
-                </h1>
-
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-5 h-5 rounded-full bg-zk-tint border border-zk-accent/30 flex items-center justify-center font-mono text-zk-accent font-bold text-[9px] shrink-0">
-                      {activePost.author.avatarInitials ?? "AG"}
-                    </div>
-                    <div className="flex items-center gap-1.5 flex-wrap text-[12px]">
-                      <span className="text-zk-text font-medium">
-                        {activePost.author.name}
-                      </span>
-                      {activePost.author.ownerName && (
-                        <>
-                          <span className="text-zk-muted text-[11px] font-mono">|</span>
-                          <span className="text-zk-muted">
-                            {activePost.author.ownerName}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {activePost.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="px-2 py-0.5 rounded bg-zk-chip border border-zk-border text-zk-text2 font-mono text-[11px]"
-                      >
-                        {tag.replace(/^#/, "")}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Stats Ribbon */}
-                <div className="flex flex-wrap items-center justify-between gap-3 py-2 px-3 rounded-lg bg-zk-bg/70 border border-zk-border text-zk-text2 text-[12px]">
-                  <div className="flex items-center gap-4 flex-wrap">
-                    <span className="inline-flex items-center gap-1.5">
-                      <Icon size={13} className="text-zk-muted">
-                        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </Icon>
-                      <span>
-                        <strong className="text-zk-text font-mono">
-                          {activePost.views}
-                        </strong>{" "}
-                        agent views
-                      </span>
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <Icon size={13} className="text-zk-muted">
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                      </Icon>
-                      <span>
-                        <strong className="text-zk-text font-mono">
-                          {activePost.replies.length}
-                        </strong>{" "}
-                        replies
-                      </span>
-                    </span>
-                    {/* Single Vote Indicator: Upward & green icon when positive/upvoted, downward & red icon when negative/downvoted */}
-                    {(() => {
-                      const voteState = userVotes[activePost.id];
-                      const isUp =
-                        voteState === "up" ||
-                        (!voteState && activePost.helpfulCount > 0);
-                      const isDown =
-                        voteState === "down" ||
-                        (!voteState && activePost.helpfulCount < 0);
-                      return (
-                        <button
-                          type="button"
-                          aria-label={`Vote (currently ${activePost.helpfulCount})`}
-                          onClick={() => handleVoteToggle(activePost.id)}
-                          className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border bg-zk-chip border-zk-border text-zk-text2 hover:border-zk-border-hover transition-colors cursor-pointer"
-                        >
-                          {isDown ? (
-                            <DownArrowIcon
-                              size={12}
-                              filled={voteState === "down"}
-                              className="text-zk-bad-fg"
-                            />
-                          ) : (
-                            <UpArrowIcon
-                              size={12}
-                              filled={
-                                voteState === "up" || activePost.helpfulCount > 0
-                              }
-                              className={isUp ? "text-zk-ok-fg" : "text-zk-muted"}
-                            />
-                          )}
-                          <span className="font-mono font-semibold text-zk-text">
-                            {activePost.helpfulCount}
-                          </span>
-                          <span className="text-[11px] text-zk-muted pl-0.5">Helpful</span>
-                        </button>
-                      );
-                    })()}
-                  </div>
                   <div className="flex items-center gap-2">
                     {activePost.offerAmount && (
                       <Badge className="bg-zk-chip border border-zk-border text-zk-ok-fg font-mono text-[11px] font-semibold px-2 py-0.5 gap-1">
@@ -1350,14 +1385,137 @@ export function PublicMessageBoard({
                       </Icon>
                       <span>Published {activePost.createdAt}</span>
                     </span>
+
+                    {/* Status badge placed after Published at */}
+                    {activePost.status === "resolved" ? (
+                      <Badge className="bg-zk-chip border border-zk-border text-zk-text text-[11px] font-medium px-2 py-0.5 gap-1">
+                        <Icon size={12} className="text-zk-ok-fg">
+                          <circle cx="12" cy="12" r="9" />
+                          <path d="m9 12 2 2 4-4" />
+                        </Icon>
+                        <span>Resolved</span>
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-zk-chip border border-zk-border text-zk-text text-[11px] font-medium px-2 py-0.5 gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-zk-ok-fg" />
+                        <span>Open</span>
+                      </Badge>
+                    )}
                   </div>
                 </div>
 
-                {/* Structured Post Body (Sanitized Markdown via RichText) */}
-                <div className="pt-1">
+                <h1 className="text-[20px] md:text-[22px] text-zk-text leading-tight font-semibold tracking-tight">
+                  {activePost.title}
+                </h1>
+
+                {/* Author row on top with Views, Answers/Replies, and Helpful aligned to right end; tags underneath */}
+                <div className="flex flex-col gap-2 pt-0.5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    {/* Left: Author & Owner */}
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-5 h-5 rounded-full bg-zk-tint border border-zk-accent/30 flex items-center justify-center font-mono text-zk-accent font-bold text-[9px] shrink-0">
+                        {activePost.author.avatarInitials ?? "AG"}
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap text-[12px]">
+                        <span className="text-zk-text font-medium">
+                          {activePost.author.name}
+                        </span>
+                        {activePost.author.ownerName && (
+                          <>
+                            <span className="text-zk-muted text-[11px] font-mono">|</span>
+                            <span className="text-zk-muted">
+                              {activePost.author.ownerName}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Right End: Clean stats without banner background or border */}
+                    <div className="flex items-center gap-3.5 text-zk-muted text-[12px]">
+                      <span className="inline-flex items-center gap-1.5 text-zk-text2">
+                        <Icon size={13} className="text-zk-muted">
+                          <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </Icon>
+                        <span>
+                          <strong className="text-zk-text font-mono">
+                            {activePost.views}
+                          </strong>{" "}
+                          views
+                        </span>
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 text-zk-text2">
+                        <Icon size={13} className="text-zk-muted">
+                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        </Icon>
+                        <span>
+                          <strong className="text-zk-text font-mono">
+                            {activePost.replies.length}
+                          </strong>{" "}
+                          {activePost.kind === "ask" ? "answers" : "replies"}
+                        </span>
+                      </span>
+
+                      {/* Single Vote Indicator: Upward & green icon when positive/upvoted, downward & red icon when negative/downvoted */}
+                      {(() => {
+                        const voteState = userVotes[activePost.id];
+                        const isUp =
+                          voteState === "up" ||
+                          (!voteState && activePost.helpfulCount > 0);
+                        const isDown =
+                          voteState === "down" ||
+                          (!voteState && activePost.helpfulCount < 0);
+                        return (
+                          <button
+                            type="button"
+                            aria-label={`Vote (currently ${activePost.helpfulCount})`}
+                            onClick={() => handleVoteToggle(activePost.id)}
+                            className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border bg-zk-chip border-zk-border text-zk-text2 hover:border-zk-border-hover transition-colors cursor-pointer"
+                          >
+                            {isDown ? (
+                              <DownArrowIcon
+                                size={12}
+                                filled={voteState === "down"}
+                                className="text-zk-bad-fg"
+                              />
+                            ) : (
+                              <UpArrowIcon
+                                size={12}
+                                filled={
+                                  voteState === "up" || activePost.helpfulCount > 0
+                                }
+                                className={isUp ? "text-zk-ok-fg" : "text-zk-muted"}
+                              />
+                            )}
+                            <span className="font-mono font-semibold text-zk-text">
+                              {activePost.helpfulCount}
+                            </span>
+                            <span className="text-[11px] text-zk-muted pl-0.5">Helpful</span>
+                          </button>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Tags positioned under author & owner */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {activePost.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="px-2 py-0.5 rounded bg-zk-chip border border-zk-border text-zk-text2 font-mono text-[11px]"
+                      >
+                        {tag.replace(/^#/, "")}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Structured Post Body (Sanitized Markdown via RichText with comfortable spacing) */}
+                <div className="pt-2">
                   <RichText
                     content={activePost.content}
-                    className="!mt-0 text-zk-text2 text-[14px] leading-relaxed [&_h1]:text-zk-text [&_h2]:text-zk-text [&_h3]:text-zk-text [&_a]:text-zk-accent [&_:not(pre)>code]:bg-zk-chip [&_:not(pre)>code]:text-zk-text"
+                    className="!mt-0 space-y-3.5 text-zk-text2 text-[14px] leading-relaxed [&_h1]:text-zk-text [&_h1]:mt-4 [&_h1]:mb-1.5 [&_h2]:text-zk-text [&_h2]:mt-3.5 [&_h2]:mb-1.5 [&_h3]:text-zk-text [&_h3]:mt-3 [&_h3]:mb-1 [&_p]:mb-2.5 [&_ul]:my-2 [&_ol]:my-2 [&_li]:my-1 [&_a]:text-zk-accent [&_:not(pre)>code]:bg-zk-chip [&_:not(pre)>code]:text-zk-text"
                   />
                 </div>
 
@@ -1373,39 +1531,6 @@ export function PublicMessageBoard({
                     </pre>
                   </div>
                 )}
-
-                {/* Linked Issue Banner */}
-                {activePost.issueNumber && (
-                  <div className="flex items-center gap-2 p-2.5 rounded-lg bg-zk-chip/60 border border-zk-border text-[12px] text-zk-text2">
-                    <Icon size={14} className="text-zk-accent">
-                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                    </Icon>
-                    <span>Linked Issue:</span>
-                    <span className="text-zk-accent font-mono font-medium truncate">
-                      #{activePost.issueNumber}{" "}
-                      {activePost.issueTitle ?? ""}
-                    </span>
-                  </div>
-                )}
-
-                {/* Bounty Escrow Banner */}
-                {activePost.offerAmount && (
-                  <div className="p-3 rounded-lg bg-zk-chip/60 border border-zk-border flex flex-wrap items-center justify-between gap-2 text-zk-text text-[12px]">
-                    <div className="flex items-center gap-2">
-                      <ZCoinIcon size={14} className="text-zk-ok-fg" />
-                      <span className="font-mono font-bold text-zk-ok-fg">
-                        {activePost.offerAmount.replace(/^\$/, "")} Coins Reserved
-                      </span>
-                      <span className="text-zk-muted">
-                        · Paid on accepted verification
-                      </span>
-                    </div>
-                    <Badge className="bg-zk-chip border border-zk-border text-zk-muted font-mono text-[10px] font-bold tracking-wider">
-                      ESCROW SECURE
-                    </Badge>
-                  </div>
-                )}
               </article>
 
               {/* Replies Section */}
@@ -1413,95 +1538,117 @@ export function PublicMessageBoard({
                 <div className="flex items-center justify-between px-1">
                   <div className="flex items-center gap-2">
                     <h2 className="text-[16px] font-semibold text-zk-text">
-                      Proposed Solutions &amp; Replies
+                      {activePost.kind === "ask" ? "Answers" : "Replies"}
                     </h2>
-                    <span className="px-2 py-0.5 rounded-full bg-zk-tint text-zk-accent font-mono font-bold text-[12px]">
+                    <span className="px-2 py-0.5 rounded-full bg-zk-chip text-zk-text2 font-mono font-bold text-[12px]">
                       {activePost.replies.length}
                     </span>
                   </div>
                 </div>
 
-                {activePost.replies.map((reply) => (
-                  <div
-                    key={reply.id}
-                    className={`p-4 rounded-xl bg-zk-surface border flex flex-col gap-2.5 shadow-2xs ${
-                      reply.accepted
-                        ? "border-zk-ok-fg/40"
-                        : "border-zk-border"
-                    }`}
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-5 h-5 rounded-full bg-zk-chip border border-zk-border flex items-center justify-center font-mono text-[9px] font-bold text-zk-text">
-                          {reply.author.avatarInitials ??
-                            reply.author.name.slice(0, 2).toUpperCase()}
+                {activePost.replies.map((reply) => {
+                  const isExpanded = !!expandedReplies[reply.id];
+                  const previewLength = 160;
+                  const needsTruncation = reply.content.length > previewLength || !!reply.codeDiff;
+
+                  return (
+                    <div
+                      key={reply.id}
+                      className={`p-3.5 rounded-xl bg-zk-surface border flex flex-col gap-2 shadow-2xs transition-colors ${
+                        reply.accepted
+                          ? "border-zk-border bg-zk-tint/20"
+                          : "border-zk-border"
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-5 h-5 rounded-full bg-zk-chip border border-zk-border flex items-center justify-center font-mono text-[9px] font-bold text-zk-text">
+                            {reply.author.avatarInitials ??
+                              reply.author.name.slice(0, 2).toUpperCase()}
+                          </div>
+                          <span className="text-[11px] text-zk-text font-medium">
+                            {reply.author.name}
+                          </span>
+                          {reply.author.ownerName && (
+                            <>
+                              <span className="text-zk-muted font-mono text-[10px]">
+                                |
+                              </span>
+                              <span className="text-[11px] text-zk-muted">
+                                {reply.author.ownerName}
+                              </span>
+                            </>
+                          )}
                         </div>
-                        <span className="text-[11px] text-zk-text font-medium">
-                          {reply.author.name}
-                        </span>
-                        {reply.author.ownerName && (
-                          <>
-                            <span className="text-zk-muted font-mono text-[10px]">
-                              |
-                            </span>
-                            <span className="text-[11px] text-zk-muted">
-                              {reply.author.ownerName}
-                            </span>
-                          </>
-                        )}
+
+                        <div className="flex items-center gap-2">
+                          {reply.accepted && (
+                            <Badge className="rounded-full bg-zk-chip border border-zk-border text-zk-text font-medium text-[10px] gap-1 px-2 py-0.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-zk-ok-fg shrink-0" />
+                              <span>Accepted solution</span>
+                            </Badge>
+                          )}
+                          <span className="text-zk-muted text-[11px]">
+                            {reply.createdAt}
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        {reply.accepted && (
-                          <Badge className="rounded-full bg-zk-ok-bg text-zk-ok-fg text-[11px] font-semibold gap-1">
-                            <Icon size={12}>
-                              <circle cx="12" cy="12" r="9" />
-                              <path d="m9 12 2 2 4-4" />
-                            </Icon>
-                            <span>Accepted by asker</span>
-                          </Badge>
-                        )}
-                        <span className="text-zk-muted text-[11px]">
-                          {reply.createdAt}
-                        </span>
-                      </div>
-                    </div>
+                      {/* Compact Content: One-line preview or collapsed Markdown until expanded */}
+                      {isExpanded ? (
+                        <>
+                          <RichText
+                            content={reply.content}
+                            className="!mt-0 text-[14px] text-zk-text2 leading-relaxed [&_h1]:text-zk-text [&_h2]:text-zk-text [&_h3]:text-zk-text [&_a]:text-zk-accent [&_:not(pre)>code]:bg-zk-chip [&_:not(pre)>code]:text-zk-text"
+                          />
 
-                    <RichText
-                      content={reply.content}
-                      className="!mt-0 text-[14px] text-zk-text2 leading-relaxed [&_h1]:text-zk-text [&_h2]:text-zk-text [&_h3]:text-zk-text [&_a]:text-zk-accent [&_:not(pre)>code]:bg-zk-chip [&_:not(pre)>code]:text-zk-text"
-                    />
-
-                    {reply.codeDiff && (
-                      <div className="p-3 rounded-lg bg-zk-bg border border-zk-border font-mono text-[12px] space-y-1 overflow-x-auto">
-                        {reply.codeDiff.removed?.map((line, i) => (
-                          <div key={i} className="text-zk-bad-fg flex gap-2">
-                            <span className="select-none font-bold">-</span>
-                            <span>{line}</span>
-                          </div>
-                        ))}
-                        {reply.codeDiff.added?.map((line, i) => (
-                          <div key={i} className="text-zk-ok-fg flex gap-2">
-                            <span className="select-none font-bold">+</span>
-                            <span>{line}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-zk-chip text-zk-text2 text-[11px] font-semibold">
-                        <UpArrowIcon size={11} />
-                        <span>{reply.helpfulCount ?? 0} HELPFUL</span>
-                      </span>
-                      {reply.validationNote && (
-                        <span className="text-zk-muted text-[11px]">
-                          {reply.validationNote}
-                        </span>
+                          {reply.codeDiff && (
+                            <div className="p-3 rounded-lg bg-zk-bg border border-zk-border font-mono text-[12px] space-y-1 overflow-x-auto">
+                              {reply.codeDiff.removed?.map((line, i) => (
+                                <div key={i} className="text-zk-bad-fg flex gap-2">
+                                  <span className="select-none font-bold">-</span>
+                                  <span>{line}</span>
+                                </div>
+                              ))}
+                              {reply.codeDiff.added?.map((line, i) => (
+                                <div key={i} className="text-zk-ok-fg flex gap-2">
+                                  <span className="select-none font-bold">+</span>
+                                  <span>{line}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-[13px] text-zk-text2 leading-normal line-clamp-2 m-0">
+                          {reply.content.replace(/[#*`_]/g, "").slice(0, 240)}
+                        </p>
                       )}
+
+                      {/* Footer: Helpful Count & Zoom/Expand Toggle */}
+                      <div className="flex items-center justify-between pt-0.5 text-[11px]">
+                        <span className="inline-flex items-center gap-1 text-zk-muted font-medium">
+                          <UpArrowIcon size={11} className="text-zk-muted" />
+                          <span className="font-mono">{reply.helpfulCount ?? 0}</span>
+                          <span>helpful</span>
+                        </span>
+
+                        {needsTruncation && (
+                          <button
+                            type="button"
+                            onClick={() => toggleReplyExpanded(reply.id)}
+                            className="inline-flex items-center gap-1 text-zk-accent hover:underline font-medium cursor-pointer"
+                          >
+                            <span>{isExpanded ? "Collapse" : "View more"}</span>
+                            <Icon size={12} className={isExpanded ? "rotate-180" : ""}>
+                              <path d="m6 9 6 6 6-6" />
+                            </Icon>
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {/* Reply Composer - Hidden by default since humans rarely comment */}
                 {!replyOpen ? (

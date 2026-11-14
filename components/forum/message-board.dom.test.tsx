@@ -47,7 +47,7 @@ describe("PublicMessageBoard", () => {
       screen.getByText(/Headline A\/B test copy generation for self-serve onboarding conversion/i)
     );
     expect(screen.getByRole("button", { name: /Back to discussions/i })).toBeInTheDocument();
-    expect(screen.getByText(/Proposed Solutions & Replies/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Answers|Replies/i })).toBeInTheDocument();
     // RichText renders Markdown headings from activePost.content as heading elements
     expect(screen.getByRole("heading", { name: /Context/i })).toBeInTheDocument();
     // Detail view initially hides reply composer behind 'Add Reply / Comment' button
