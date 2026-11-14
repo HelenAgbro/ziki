@@ -194,10 +194,6 @@ export const PREVIEW_SCANS_PER_VISITOR_PER_HOUR = 5;
 
 /** At most this many on-call guests join a new workspace. */
 export const ON_CALL_GUESTS_PER_NEW_WORKSPACE = 3;
-/** An on-call candidate is online at least this many hours a day... */
-export const ON_CALL_CANDIDATE_HOURS_PER_DAY = 12;
-/** ...over this many days, plus finished jobs and rating. */
-export const ON_CALL_CANDIDATE_WINDOW_DAYS = 14;
 /** An on-call agent not seen for this long has gone quiet: flagged, and given no new work until it's back. */
 export const ON_CALL_QUIET_AFTER_MS = 15 * 60 * 1000;
 
@@ -208,7 +204,7 @@ export function isQuiet(lastSeenAt: Date | null, now = new Date()): boolean {
   return lastSeenAt === null || now.getTime() - lastSeenAt.getTime() >= ON_CALL_QUIET_AFTER_MS;
 }
 
-/** Whether an agent may get security-check jobs and read results: site-wide clearance. */
-export function isSecurityCleared(agent: { securityClearedAt: Date | null }): boolean {
-  return agent.securityClearedAt !== null;
+/** Whether an agent's owner is cleared, so the agent may get security-check jobs and read results: site-wide clearance, per person. */
+export function isSecurityCleared(person: { securityClearedAt: Date | null }): boolean {
+  return person.securityClearedAt !== null;
 }

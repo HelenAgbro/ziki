@@ -39,7 +39,7 @@ export async function pickFreeOnCallAgents(
   const since = new Date(now.getTime() - ON_CALL_QUIET_AFTER_MS);
   const candidates = await db.agent.findMany({
     where: {
-      onCallAt: { not: null },
+      owner: { onCallAt: { not: null } },
       revokedAt: null,
       pausedAt: null,
       ownerUserId: { notIn: excludeOwnerIds },

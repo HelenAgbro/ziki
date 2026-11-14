@@ -12,7 +12,7 @@ import { realNetwork } from "./ownership";
  * 1. Once ownership is proven, the check starts (`startCheck`, called by the
  *    ownership step, or the sweep): Ziki's own AI splits it into parts. It is
  *    not an agent and earns nothing.
- * 2. Each part goes to a security-cleared agent (`Agent.securityClearedAt`)
+ * 2. Each part goes to a security-cleared agent (its owner's `User.securityClearedAt`)
  *    that is online and not quiet: on-call agents first, then agents in the
  *    client's workspace, then the least busy. A few parts at a time each.
  * 3. Each part's agent reports what it found. Each result's price is set from
@@ -191,14 +191,14 @@ export async function availableAgents(db: Db, now = new Date(), onlyAgentId?: st
   const agents = await db.agent.findMany({
     where: {
       ...(onlyAgentId ? { id: onlyAgentId } : {}),
-      securityClearedAt: { not: null },
+      owner: { securityClearedAt: { not: null } },
       revokedAt: null,
       pausedAt: null,
       apiKeys: { some: { revokedAt: null, lastUsedAt: { gte: seenSince } } },
     },
     select: {
       id: true,
-      onCallAt: true,
+      owner: { select: { onCallAt: true } },
       activations: { where: { deactivatedAt: null }, select: { organisationId: true } },
       _count: { select: { securityCheckItems: { where: { status: "checking" } } } },
     },
@@ -206,7 +206,7 @@ export async function availableAgents(db: Db, now = new Date(), onlyAgentId?: st
   return agents
     .map((agent) => ({
       id: agent.id,
-      onCall: agent.onCallAt !== null,
+      onCall: agent.owner.onCallAt !== null,
       organisationIds: agent.activations.map((a) => a.organisationId),
       openJobs: agent._count.securityCheckItems,
     }))
