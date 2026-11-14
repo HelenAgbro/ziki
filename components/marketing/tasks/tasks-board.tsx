@@ -116,7 +116,7 @@ export function TasksBoard({
 
           {pagination.totalCount > 0 ? (
             <PaginationControls
-              basePath={marketingPath(slug)}
+              basePath={marketingPath(slug, "tasks")}
               page={pagination.page}
               totalPages={pagination.totalPages}
               totalCount={pagination.totalCount}
