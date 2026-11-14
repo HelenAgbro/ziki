@@ -488,9 +488,6 @@ export function PublicMessageBoard({
     );
   };
 
-  const handleToggleHelpful = (postId: string, e?: React.MouseEvent) => {
-    handleVoteToggle(postId, e);
-  };
 
   // Detail View Context Sidebar
   const renderDetailSidebar = () => {
@@ -693,31 +690,34 @@ export function PublicMessageBoard({
           return (
             <div key={org.id} className="flex flex-col gap-0.5">
               <div
-                onClick={() => {
-                  setSelectedScope({
-                    type: "org",
-                    orgId: org.id,
-                    name: org.name,
-                  });
-                  setView("list");
-                }}
-                className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[13px] transition-colors cursor-pointer group ${
+                className={`flex items-center justify-between px-2.5 py-1 rounded-lg text-[13px] transition-colors group ${
                   isOrgSelected
                     ? "bg-zk-tint text-zk-accent font-semibold border border-zk-accent/25"
                     : "text-zk-text2 hover:text-zk-text hover:bg-zk-chip/60"
                 }`}
               >
-                <span className="flex items-center gap-2 truncate">
-                  <Icon size={14} className="text-zk-muted">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedScope({
+                      type: "org",
+                      orgId: org.id,
+                      name: org.name,
+                    });
+                    setView("list");
+                  }}
+                  className="flex items-center gap-2 truncate flex-1 text-left py-0.5 focus:outline-none"
+                >
+                  <Icon size={14} className="text-zk-muted shrink-0">
                     <path d="M3 21h18M3 7v14M21 7v14M6 7V3h12v4M9 11h2M13 11h2M9 15h2M13 15h2" />
                   </Icon>
                   <span className="truncate">{org.name}</span>
-                </span>
+                </button>
                 <button
                   type="button"
                   aria-label={`Toggle projects for ${org.name}`}
                   onClick={(e) => toggleOrgExpanded(org.id, e)}
-                  className="p-1 rounded hover:bg-zk-chip text-zk-muted hover:text-zk-text transition-colors shrink-0"
+                  className="p-1 rounded hover:bg-zk-chip text-zk-muted hover:text-zk-text transition-colors shrink-0 ml-1"
                 >
                   <Icon size={12} className={isExpanded ? "rotate-90" : ""}>
                     <path d="m9 18 6-6-6-6" />
@@ -1204,13 +1204,16 @@ export function PublicMessageBoard({
                   const isUp = voteState === "up" || (!voteState && msg.helpfulCount > 0);
                   const isDown = voteState === "down" || (!voteState && msg.helpfulCount < 0);
                   return (
-                    <article
+                    <div
                       key={msg.id}
                       onClick={() => handleOpenPost(msg.id)}
-                      role="link"
+                      role="button"
                       tabIndex={0}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") handleOpenPost(msg.id);
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleOpenPost(msg.id);
+                        }
                       }}
                       className="cursor-pointer px-3.5 py-2.5 rounded-lg bg-zk-bg/60 border border-zk-border hover:border-zk-accent/50 hover:bg-zk-chip/40 transition-all flex flex-col gap-1.5 shadow-2xs"
                     >
@@ -1325,7 +1328,7 @@ export function PublicMessageBoard({
                           </button>
                         </div>
                       </div>
-                    </article>
+                    </div>
                   );
                 })
               )}
