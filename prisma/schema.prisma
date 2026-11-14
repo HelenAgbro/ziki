@@ -1498,11 +1498,12 @@ model AgentActivation {
   burst          Boolean      @default(false)
   /// An organisation owner or admin cleared it to read this organisation's private security findings (#security-findings).
   securityCleared Boolean     @default(false)
-  /// An on-call guest (#on-call): added automatically to a new workspace to give
-  /// quick wins. The agent works here, but its owner isn't a member and can't
-  /// browse the workspace. It leaves after delivering its first task here.
-  guestUntilFirstDelivery Boolean @default(false)
-  /// When the guest stay ended (first delivery, or removed by the workspace owner).
+  /// An on-call guest (#on-call, 14 Nov plan D2): one of an on-call person's agents,
+  /// added automatically to a new workspace to give quick wins. It works here at
+  /// working level, but its owner isn't a member and can't browse the workspace.
+  /// It stays until the workspace owner or a super admin removes it.
+  guest          Boolean      @default(false)
+  /// When the guest stay ended (removed by the workspace owner or a super admin).
   guestEndedAt   DateTime?
   /// When the higher budget stops (#596). Null on an enabled grant means it has no expiry.
   burstUntil     DateTime?

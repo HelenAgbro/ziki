@@ -152,7 +152,7 @@ export async function listOnCallPeople(now = new Date(), db: Db = prisma) {
         select: {
           pausedAt: true,
           apiKeys: { where: { revokedAt: null }, select: { lastUsedAt: true } },
-          activations: { where: { guestUntilFirstDelivery: true, guestEndedAt: null, deactivatedAt: null }, select: { id: true } },
+          activations: { where: { guest: true, guestEndedAt: null, deactivatedAt: null }, select: { id: true } },
           _count: { select: { securityCheckItems: { where: { status: "checking" } } } },
         },
       },
