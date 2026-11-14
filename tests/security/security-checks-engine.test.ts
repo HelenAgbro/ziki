@@ -16,6 +16,7 @@ import {
   postReportIfComplete,
   reclaimStaleJobs,
   startCheck,
+  startWaitingChecks,
   submitReport,
 } from "@/lib/security-checks/engine";
 
@@ -114,6 +115,20 @@ describe("starting a check: Ziki's AI splits it", () => {
     expect(db.securityCheck.updateMany.mock.calls[0][0].where).not.toHaveProperty("target");
     expect(db.securityCheckItem.createMany.mock.calls[0][0].data).toHaveLength(8);
     expect(db.securityCheckItem.createMany.mock.calls[0][0].data[0]).toMatchObject({ checkId: "check1", kind: "check", title: "Part 1" });
+  });
+
+  it("starts a check still marked as waiting for proof while proof is off, and not when it is required", async () => {
+    for (const [required, statuses] of [[false, ["queued", "awaiting_ownership"]], [true, ["queued"]]] as const) {
+      vi.stubEnv("SECURITY_OWNERSHIP_PROOF_REQUIRED", required ? "true" : "false");
+      const db = fakeDb();
+      db.securityCheck.updateMany.mockResolvedValue({ count: 0 });
+      await startCheck(asDb(db), "check1", now, { ai: fakeAi({ parts: [] }).ai, readPage: null });
+      expect(db.securityCheck.updateMany.mock.calls[0][0].where.OR[0]).toEqual({ status: { in: statuses } });
+      db.securityCheck.findMany.mockResolvedValue([]);
+      await startWaitingChecks(asDb(db), now);
+      expect(db.securityCheck.findMany.mock.calls[0][0].where.OR[0]).toEqual({ status: { in: statuses } });
+      vi.unstubAllEnvs();
+    }
   });
 
   it("does nothing when another run already claimed it, or it isn't proven", async () => {
